@@ -9,6 +9,7 @@ HELP_TEXT = (
     "*Getting started*\n"
     "  /email `you@example.com` — set your email\n"
     "  /wallet — create a new wallet or link an existing one\n"
+    "  /approve — enable trading on a created wallet (one time, uses your POL)\n"
     "  /link — link an existing Polymarket account\n"
     "  /status — check your connection and balance\n"
     "  /unlink — remove your stored credentials\n\n"

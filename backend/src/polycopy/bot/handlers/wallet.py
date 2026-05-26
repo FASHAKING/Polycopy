@@ -6,8 +6,9 @@ from telegram.ext import ContextTypes
 
 from polycopy.bot.session import db_session
 from polycopy.core import repo
+from polycopy.core.config import get_settings
 from polycopy.core.logging import get_logger
-from polycopy.core.wallet import generate_wallet
+from polycopy.core.wallet import ensure_trading_allowances, generate_wallet
 from polycopy.polymarket.clob import derive_api_creds
 from polycopy.polymarket.data_api import PolymarketDataClient
 
@@ -93,6 +94,44 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def cmd_approve(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Set the one-time on-chain trading approvals, paid from the wallet's own POL."""
+    async with db_session() as session:
+        user = await repo.get_user_by_telegram_id(session, update.effective_user.id)
+        cred = await repo.get_credential_meta(session, user) if user else None
+        bundle = await repo.get_credential_bundle(session, user) if user else None
+
+    if cred is None or bundle is None:
+        await update.message.reply_text("Set up a wallet first with /wallet.")
+        return
+    if cred.origin != "created":
+        await update.message.reply_text(
+            "Approvals are managed by Polymarket for linked accounts — nothing to do here."
+        )
+        return
+
+    await update.message.reply_text(
+        "Setting trading approvals on-chain… this spends a little POL from your wallet."
+    )
+    status = await asyncio.to_thread(
+        ensure_trading_allowances, bundle.private_key, get_settings().polygon_rpc
+    )
+
+    if status.error:
+        await update.message.reply_text(
+            f"⚠️ Couldn't complete approvals: {status.error}\n\n"
+            "Make sure your wallet holds a little POL for gas, then try /approve again."
+        )
+        return
+    if status.set_count == 0:
+        await update.message.reply_text("✅ Already approved — you're ready to trade.")
+        return
+    await update.message.reply_text(
+        f"✅ Approvals set ({status.set_count} sent, {status.already_ok} already in place). "
+        "You're ready to copy-trade."
+    )
+
+
 async def wallet_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -144,11 +183,12 @@ async def wallet_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     await query.edit_message_text(
         "✅ *Your wallet is ready!*\n\n"
         f"Address:\n`{wallet.address}`\n\n"
-        "*To start trading:*\n"
-        "1. Deposit *USDC.e on the Polygon network* to the address above.\n"
-        "2. Keep a little *POL* in it for one-time trading approvals.\n\n"
+        "*To start trading (from your own external wallet):*\n"
+        "1. Send *USDC.e on Polygon* to the address above — this is your trading balance.\n"
+        "2. Send a little *POL* too — it pays gas for the one-time approval below.\n"
+        "3. Run /approve once to enable trading (uses your wallet's own POL).\n\n"
         "Then /follow a trader or turn on /auto. Check balance with /wallet.\n\n"
-        "_Note: trading approvals for newly-created wallets require live on-chain "
-        "verification before relying on them with significant funds._",
+        "_Note: the on-chain approval step still needs live verification before "
+        "relying on a created wallet with significant funds._",
         parse_mode="Markdown",
     )
