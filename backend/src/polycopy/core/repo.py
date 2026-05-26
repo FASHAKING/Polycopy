@@ -225,6 +225,21 @@ async def record_copied_trade(session: AsyncSession, **fields) -> CopiedTrade:
     return trade
 
 
+async def spent_today_usd(session: AsyncSession, user: User) -> float:
+    """Sum notional (our_size * our_price) of trades submitted today (UTC)."""
+    from sqlalchemy import func
+
+    start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    res = await session.execute(
+        select(func.coalesce(func.sum(CopiedTrade.our_size * CopiedTrade.our_price), 0.0)).where(
+            CopiedTrade.user_id == user.id,
+            CopiedTrade.created_at >= start,
+            CopiedTrade.status.in_(("submitted", "filled")),
+        )
+    )
+    return float(res.scalar_one() or 0.0)
+
+
 async def list_copied_trades(
     session: AsyncSession, user: User, limit: int = 50
 ) -> list[CopiedTrade]:

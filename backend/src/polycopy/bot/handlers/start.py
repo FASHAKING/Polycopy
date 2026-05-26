@@ -18,6 +18,10 @@ HELP_TEXT = (
     "  /auto on — auto-follow profitable, active traders in a 60–80% win-rate band\n"
     "  /auto off — stop auto-following\n"
     "  /auto status — current setting\n\n"
+    "*Risk controls*\n"
+    "  /risk — view your caps\n"
+    "  /risk maxtrade 25 — max $ per copied trade\n"
+    "  /risk daycap 100 — max $ copied per day\n\n"
     "Non-custodial: your funds stay in your own Polymarket account."
 )
 

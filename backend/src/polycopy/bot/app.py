@@ -13,6 +13,7 @@ from polycopy.bot.handlers.link import (
     cmd_status,
     cmd_unlink,
 )
+from polycopy.bot.handlers.risk import cmd_risk
 from polycopy.bot.handlers.start import cmd_help, cmd_start
 from polycopy.core.config import get_settings
 from polycopy.core.db import init_db
@@ -36,6 +37,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("unfollow", cmd_unfollow))
     app.add_handler(CommandHandler("list", cmd_list))
     app.add_handler(CommandHandler("auto", cmd_auto))
+    app.add_handler(CommandHandler("risk", cmd_risk))
     app.add_handler(CallbackQueryHandler(follow_callback, pattern=r"^follow:"))
     return app
 

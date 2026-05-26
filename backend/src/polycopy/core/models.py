@@ -21,9 +21,10 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     # Risk knobs (per-user defaults; overridable per follow)
-    default_size_pct: Mapped[float] = mapped_column(Float, default=1.0)  # % of leader size
+    default_size_pct: Mapped[float] = mapped_column(Float, default=1.0)  # multiplier of leader size
     max_slippage_bps: Mapped[int] = mapped_column(BigInteger, default=200)  # 2%
-    daily_loss_cap_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
+    max_notional_per_trade_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
+    daily_spend_cap_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
     auto_scout_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
     credentials: Mapped["PolymarketCredential | None"] = relationship(

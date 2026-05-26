@@ -108,15 +108,30 @@ async def execute_mirror(
         log.info("mirror.skip", user=user.id, reason=decision.skip_reason)
         return
 
+    # Apply per-user risk caps; may shrink the order or skip it entirely.
+    from polycopy.workers.risk import apply_risk_caps
+
+    risk = await apply_risk_caps(
+        session, user, size=decision.our_size, price=decision.our_price
+    )
+    if not risk.allowed:
+        await repo.record_copied_trade(
+            session, status="skipped", skip_reason=risk.reason, **common
+        )
+        log.info("mirror.risk_skip", user=user.id, reason=risk.reason)
+        return
+
+    order = decision.order
+    order.size = risk.size
     client = ClobClient(creds)
-    result = await asyncio.to_thread(client.place_order, decision.order)
+    result = await asyncio.to_thread(client.place_order, order)
 
     await repo.record_copied_trade(
         session,
         status="submitted" if result.accepted else "rejected",
         our_order_id=result.order_id,
         our_price=decision.our_price,
-        our_size=decision.our_size,
+        our_size=risk.size,
         skip_reason=None if result.accepted else (result.error or "order rejected"),
         **common,
     )
