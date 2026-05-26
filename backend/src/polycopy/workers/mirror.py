@@ -1,0 +1,129 @@
+"""Turn a leader's trade into a mirrored order for a follower, and execute it.
+
+`decide_mirror` is pure and the unit-testable heart of copy sizing; `execute_mirror`
+performs the side effects (place order via CLOB, record the CopiedTrade).
+"""
+
+import asyncio
+from dataclasses import dataclass
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from polycopy.core import repo
+from polycopy.core.logging import get_logger
+from polycopy.core.models import Follow, Trader, User
+from polycopy.polymarket.clob import ClobClient, CredBundle, OrderRequest, clamp_price
+from polycopy.polymarket.data_api import Trade
+
+log = get_logger(__name__)
+
+# Polymarket's practical minimum order is ~$1 notional.
+MIN_NOTIONAL_USD = 1.0
+
+
+@dataclass
+class MirrorDecision:
+    should_copy: bool
+    order: OrderRequest | None = None
+    our_size: float | None = None
+    our_price: float | None = None
+    skip_reason: str | None = None
+
+
+def decide_mirror(
+    trade: Trade,
+    *,
+    size_pct: float,
+    max_slippage_bps: int,
+    min_notional_usd: float = MIN_NOTIONAL_USD,
+) -> MirrorDecision:
+    """Scale a leader trade to a follower order.
+
+    `size_pct` is a multiplier on the leader's share count (1.0 = mirror 1:1).
+    Returns a skip decision (with a reason) when the trade can't/shouldn't be
+    copied, otherwise an OrderRequest with a slippage-padded limit price.
+    """
+    if size_pct <= 0:
+        return MirrorDecision(False, skip_reason="size_pct is zero")
+    if not 0 < trade.price < 1:
+        return MirrorDecision(False, skip_reason=f"leader price out of range ({trade.price})")
+
+    our_size = round(trade.size * size_pct, 2)
+    notional = our_size * trade.price
+    if our_size <= 0 or notional < min_notional_usd:
+        return MirrorDecision(
+            False, skip_reason=f"below minimum order (${notional:.2f} < ${min_notional_usd:.2f})"
+        )
+
+    our_price = clamp_price(trade.price, trade.side, max_slippage_bps)
+    order = OrderRequest(
+        token_id=trade.token_id, side=trade.side, price=our_price, size=our_size
+    )
+    return MirrorDecision(True, order=order, our_size=our_size, our_price=our_price)
+
+
+def _effective(follow: Follow, user: User) -> tuple[float, int]:
+    size_pct = (
+        follow.size_pct_override
+        if follow.size_pct_override is not None
+        else user.default_size_pct
+    )
+    slippage = (
+        follow.max_slippage_bps_override
+        if follow.max_slippage_bps_override is not None
+        else user.max_slippage_bps
+    )
+    return size_pct, slippage
+
+
+async def execute_mirror(
+    session: AsyncSession,
+    *,
+    user: User,
+    trader: Trader,
+    follow: Follow,
+    trade: Trade,
+    creds: CredBundle,
+) -> None:
+    """Decide, place (if applicable), and persist a mirrored trade for one follower."""
+    size_pct, slippage = _effective(follow, user)
+    decision = decide_mirror(trade, size_pct=size_pct, max_slippage_bps=slippage)
+
+    common = dict(
+        user_id=user.id,
+        trader_id=trader.id,
+        market_id=trade.condition_id,
+        market_question=trade.title,
+        outcome=trade.outcome or "",
+        side=trade.side,
+        leader_tx_hash=trade.tx_hash,
+        leader_price=trade.price,
+        leader_size=trade.size,
+    )
+
+    if not decision.should_copy:
+        await repo.record_copied_trade(
+            session, status="skipped", skip_reason=decision.skip_reason, **common
+        )
+        log.info("mirror.skip", user=user.id, reason=decision.skip_reason)
+        return
+
+    client = ClobClient(creds)
+    result = await asyncio.to_thread(client.place_order, decision.order)
+
+    await repo.record_copied_trade(
+        session,
+        status="submitted" if result.accepted else "rejected",
+        our_order_id=result.order_id,
+        our_price=decision.our_price,
+        our_size=decision.our_size,
+        skip_reason=None if result.accepted else (result.error or "order rejected"),
+        **common,
+    )
+    log.info(
+        "mirror.executed",
+        user=user.id,
+        trader=trader.wallet,
+        accepted=result.accepted,
+        order_id=result.order_id,
+    )

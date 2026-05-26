@@ -11,9 +11,9 @@ log = get_logger(__name__)
 
 
 async def _watcher_tick() -> None:
-    # Phase 5 will fill this in: poll Polymarket for new trades from followed traders
-    # and enqueue mirror jobs.
-    log.debug("watcher.tick")
+    from polycopy.workers.watcher import watch_once
+
+    await watch_once()
 
 
 async def _scout_tick() -> None:
@@ -28,7 +28,7 @@ async def run_async() -> None:
     settings = get_settings()
     await init_db()
 
-    scheduler = AsyncIOScheduler()
+    scheduler = AsyncIOScheduler(job_defaults={"coalesce": True, "max_instances": 1})
     scheduler.add_job(_watcher_tick, "interval", seconds=settings.watcher_poll_interval)
     scheduler.add_job(_scout_tick, "interval", seconds=settings.scout_poll_interval)
     scheduler.start()

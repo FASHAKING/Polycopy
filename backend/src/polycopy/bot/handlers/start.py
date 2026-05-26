@@ -10,9 +10,11 @@ HELP_TEXT = (
     "  /link — connect your Polymarket account (one time)\n"
     "  /status — check your connection and balance\n"
     "  /unlink — remove your stored credentials\n\n"
-    "*Coming next*\n"
+    "*Copying traders*\n"
     "  /follow `<username|wallet>` — copy a trader\n"
-    "  /unfollow, /list — manage who you copy\n"
+    "  /unfollow `<username|wallet>` — stop copying\n"
+    "  /list — who you're copying\n\n"
+    "*Coming next*\n"
     "  /auto — auto-pick profitable, active traders\n\n"
     "Non-custodial: your funds stay in your own Polymarket account."
 )
