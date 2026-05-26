@@ -19,6 +19,7 @@ dependencies = [
     "py-clob-client>=0.17",
     "structlog>=24.4",
     "tenacity>=9.0",
+    "itsdangerous>=2.2",
 ]
 
 [project.optional-dependencies]

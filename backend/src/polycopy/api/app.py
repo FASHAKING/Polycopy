@@ -32,6 +32,9 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
 
+    from polycopy.api.routes import router
+
+    app.include_router(router)
     return app
 
 
