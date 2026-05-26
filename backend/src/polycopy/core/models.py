@@ -43,10 +43,14 @@ class PolymarketCredential(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
 
-    proxy_address: Mapped[str] = mapped_column(String(64))  # the user's Polymarket address
+    proxy_address: Mapped[str] = mapped_column(String(64))  # the user's Polymarket (funder) address
     api_key: Mapped[str] = mapped_column(String(128))
     api_secret_enc: Mapped[str] = mapped_column(String(512))  # Fernet-encrypted
     api_passphrase_enc: Mapped[str] = mapped_column(String(512))
+    # Signing key for the EOA that controls the proxy wallet. Funds never leave the
+    # user's own Polymarket account; we only use this to sign their orders. Encrypted
+    # at rest with FERNET_KEY. This is the one secret we must hold for non-custodial copy.
+    private_key_enc: Mapped[str] = mapped_column(String(512))
     signature_type: Mapped[int] = mapped_column(default=2)  # 2 = Polymarket proxy
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 

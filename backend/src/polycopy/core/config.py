@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     polymarket_data_api: str = "https://data-api.polymarket.com"
     polymarket_clob_api: str = "https://clob.polymarket.com"
     polymarket_gamma_api: str = "https://gamma-api.polymarket.com"
+    polymarket_lb_api: str = "https://lb-api.polymarket.com"
     polygon_rpc: str = "https://polygon-rpc.com"
+    polygon_chain_id: int = 137
 
     web_public_api_url: str = "http://localhost:8000"
 
