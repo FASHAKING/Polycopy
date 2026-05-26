@@ -14,8 +14,10 @@ HELP_TEXT = (
     "  /follow `<username|wallet>` — copy a trader\n"
     "  /unfollow `<username|wallet>` — stop copying\n"
     "  /list — who you're copying\n\n"
-    "*Coming next*\n"
-    "  /auto — auto-pick profitable, active traders\n\n"
+    "*Auto-copy*\n"
+    "  /auto on — auto-follow profitable, active traders in a 60–80% win-rate band\n"
+    "  /auto off — stop auto-following\n"
+    "  /auto status — current setting\n\n"
     "Non-custodial: your funds stay in your own Polymarket account."
 )
 

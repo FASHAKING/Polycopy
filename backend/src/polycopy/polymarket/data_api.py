@@ -154,13 +154,35 @@ class PolymarketDataClient:
         return [Position.model_validate(p) for p in (data or [])]
 
     async def get_activity(
-        self, wallet: str, limit: int = 200, activity_type: str | None = None
+        self,
+        wallet: str,
+        limit: int = 200,
+        activity_type: str | None = None,
+        offset: int = 0,
     ) -> list[Activity]:
         params: dict[str, Any] = {"user": wallet, "limit": limit}
+        if offset:
+            params["offset"] = offset
         if activity_type:
             params["type"] = activity_type
         data = await self._get(f"{self._data}/activity", params)
         return [Activity.model_validate(a) for a in (data or [])]
+
+    async def get_activity_paged(
+        self, wallet: str, max_events: int = 3000, page_size: int = 500
+    ) -> list[Activity]:
+        """Page through a wallet's activity up to `max_events` (newest-first)."""
+        out: list[Activity] = []
+        offset = 0
+        while len(out) < max_events:
+            batch = await self.get_activity(wallet, limit=page_size, offset=offset)
+            if not batch:
+                break
+            out.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
+        return out[:max_events]
 
     async def get_portfolio_value(self, wallet: str) -> float:
         data = await self._get(f"{self._data}/value", {"user": wallet})

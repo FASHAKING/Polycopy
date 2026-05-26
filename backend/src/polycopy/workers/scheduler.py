@@ -17,10 +17,9 @@ async def _watcher_tick() -> None:
 
 
 async def _scout_tick() -> None:
-    # Phase 6 will fill this in: rescan leaderboard, score traders, manage auto-follows.
-    # Win-rate must come from resolved history (PolymarketDataClient.get_activity,
-    # REDEEM events) since /positions only returns currently-held positions.
-    log.debug("scout.tick")
+    from polycopy.workers.scout import scout_once
+
+    await scout_once()
 
 
 async def run_async() -> None:

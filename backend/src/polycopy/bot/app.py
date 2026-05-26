@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
+from polycopy.bot.handlers.auto import cmd_auto
 from polycopy.bot.handlers.follow import (
     cmd_follow,
     cmd_list,
@@ -34,6 +35,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("follow", cmd_follow))
     app.add_handler(CommandHandler("unfollow", cmd_unfollow))
     app.add_handler(CommandHandler("list", cmd_list))
+    app.add_handler(CommandHandler("auto", cmd_auto))
     app.add_handler(CallbackQueryHandler(follow_callback, pattern=r"^follow:"))
     return app
 
