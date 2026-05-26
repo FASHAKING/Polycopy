@@ -76,13 +76,14 @@ worker + web. For a real deploy (Railway/Fly/VPS):
 Prerequisites: Python 3.11+, Node 20+, Docker (optional).
 
 ```bash
-cp .env.example .env
-# Fill in TELEGRAM_BOT_TOKEN, FERNET_KEY (see comment in .env.example)
-
 # Backend
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
+
+# Interactive setup — asks for the few required details and writes .env
+# (auto-generates FERNET_KEY + APP_SECRET; works on Linux/macOS/Windows PowerShell)
+polycopy-setup
 
 # Run all three processes in separate terminals:
 polycopy-api      # http://localhost:8000
