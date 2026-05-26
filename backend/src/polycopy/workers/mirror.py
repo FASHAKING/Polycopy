@@ -62,6 +62,55 @@ def decide_mirror(
     return MirrorDecision(True, order=order, our_size=our_size, our_price=our_price)
 
 
+def _trader_label(trader: Trader) -> str:
+    return trader.display_name or f"{trader.wallet[:6]}…{trader.wallet[-4:]}"
+
+
+def format_copy_notification(
+    trader_label: str,
+    trade: Trade,
+    *,
+    status: str,
+    our_size: float | None,
+    reason: str | None,
+) -> str:
+    """Human message sent to a follower when their leader trades."""
+    action = "opened" if trade.side.upper() == "BUY" else "closed"
+    market = (trade.title or "a market").strip()
+    head = (
+        f"🔔 *{trader_label}* {action} a position\n"
+        f"{trade.outcome or '?'} · {trade.side} @ ${trade.price:.2f}\n"
+        f"_{market}_\n"
+    )
+    if status in ("submitted", "filled"):
+        notional = (our_size or 0) * trade.price
+        tail = f"\n✅ Copying *{our_size:g}* shares (~${notional:,.2f}) into your wallet"
+    elif status == "rejected":
+        tail = f"\n⚠️ Couldn't copy: {reason or 'order rejected'}"
+    else:  # skipped
+        tail = f"\n↳ Not copied: {reason or 'skipped'}"
+    return head + tail
+
+
+async def _maybe_notify_copy(
+    user: User,
+    trader: Trader,
+    trade: Trade,
+    *,
+    status: str,
+    our_size: float | None,
+    reason: str | None,
+) -> None:
+    if not getattr(user, "notifications_enabled", True):
+        return
+    from polycopy.core.notify import notify_user
+
+    text = format_copy_notification(
+        _trader_label(trader), trade, status=status, our_size=our_size, reason=reason
+    )
+    await notify_user(user.telegram_id, text)
+
+
 def _effective(follow: Follow, user: User) -> tuple[float, int]:
     size_pct = (
         follow.size_pct_override
@@ -106,6 +155,9 @@ async def execute_mirror(
             session, status="skipped", skip_reason=decision.skip_reason, **common
         )
         log.info("mirror.skip", user=user.id, reason=decision.skip_reason)
+        await _maybe_notify_copy(
+            user, trader, trade, status="skipped", our_size=None, reason=decision.skip_reason
+        )
         return
 
     # Apply per-user risk caps; may shrink the order or skip it entirely.
@@ -119,6 +171,9 @@ async def execute_mirror(
             session, status="skipped", skip_reason=risk.reason, **common
         )
         log.info("mirror.risk_skip", user=user.id, reason=risk.reason)
+        await _maybe_notify_copy(
+            user, trader, trade, status="skipped", our_size=None, reason=risk.reason
+        )
         return
 
     order = decision.order
@@ -126,13 +181,15 @@ async def execute_mirror(
     client = ClobClient(creds)
     result = await asyncio.to_thread(client.place_order, order)
 
+    status = "submitted" if result.accepted else "rejected"
+    reason = None if result.accepted else (result.error or "order rejected")
     await repo.record_copied_trade(
         session,
-        status="submitted" if result.accepted else "rejected",
+        status=status,
         our_order_id=result.order_id,
         our_price=decision.our_price,
         our_size=risk.size,
-        skip_reason=None if result.accepted else (result.error or "order rejected"),
+        skip_reason=reason,
         **common,
     )
     log.info(
@@ -141,4 +198,7 @@ async def execute_mirror(
         trader=trader.wallet,
         accepted=result.accepted,
         order_id=result.order_id,
+    )
+    await _maybe_notify_copy(
+        user, trader, trade, status=status, our_size=risk.size, reason=reason
     )

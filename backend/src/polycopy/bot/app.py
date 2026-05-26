@@ -13,6 +13,7 @@ from polycopy.bot.handlers.link import (
     cmd_status,
     cmd_unlink,
 )
+from polycopy.bot.handlers.notify import cmd_notify
 from polycopy.bot.handlers.risk import cmd_risk
 from polycopy.bot.handlers.start import cmd_help, cmd_start
 from polycopy.bot.handlers.wallet import (
@@ -47,6 +48,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("email", cmd_email))
     app.add_handler(CommandHandler("wallet", cmd_wallet))
     app.add_handler(CommandHandler("approve", cmd_approve))
+    app.add_handler(CommandHandler("notify", cmd_notify))
     app.add_handler(CallbackQueryHandler(follow_callback, pattern=r"^follow:"))
     app.add_handler(CallbackQueryHandler(wallet_callback, pattern=r"^wallet:"))
     return app

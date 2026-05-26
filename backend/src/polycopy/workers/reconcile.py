@@ -60,4 +60,19 @@ async def _reconcile_user(user_id: int, trades: list[CopiedTrade]) -> None:
             if status.price:
                 row.our_price = status.price
             await session.commit()
+            notify = (
+                resolved == "filled"
+                and user is not None
+                and getattr(user, "notifications_enabled", True)
+            )
+            fill_size, fill_price, question = row.our_size, row.our_price, row.market_question
         log.info("reconcile.updated", trade=trade.id, status=resolved)
+
+        if notify:
+            from polycopy.core.notify import notify_user
+
+            await notify_user(
+                user.telegram_id,
+                f"✅ *Filled*: {fill_size:g} shares @ ${fill_price:.2f}\n"
+                f"_{(question or 'your copied trade').strip()}_",
+            )

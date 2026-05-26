@@ -27,6 +27,7 @@ class User(Base):
     max_notional_per_trade_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
     daily_spend_cap_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
     auto_scout_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     credentials: Mapped["PolymarketCredential | None"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
