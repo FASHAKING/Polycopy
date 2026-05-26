@@ -7,6 +7,12 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# NEXT_PUBLIC_* are inlined at build time, so they must be present here.
+# For production set NEXT_PUBLIC_API_URL to the browser-reachable API URL.
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ARG NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=$NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
 RUN npm run build
 
 FROM node:20-alpine AS runner

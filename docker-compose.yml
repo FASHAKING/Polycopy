@@ -48,10 +48,13 @@ services:
         condition: service_healthy
 
   web:
-    build: ./web
-    env_file: .env
-    environment:
-      NEXT_PUBLIC_API_URL: http://api:8000
+    build:
+      context: ./web
+      args:
+        # Browser-reachable API URL (baked into the client bundle at build).
+        # Override for production, e.g. https://api.yourdomain.com
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
     ports:
       - "3000:3000"
     depends_on:
