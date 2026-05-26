@@ -53,6 +53,29 @@ def clamp_price(price: float, side: str, max_slippage_bps: int) -> float:
     return round(adj, 2)
 
 
+def derive_api_creds(
+    private_key: str, proxy_address: str, signature_type: int = 2
+) -> tuple[str, str, str]:
+    """Derive L2 API credentials from a signing key via the CLOB API.
+
+    Lets onboarding collect only the proxy address + private key instead of
+    five separate secrets. Blocking (py-clob-client is sync); call in a thread
+    executor. Returns (api_key, api_secret, api_passphrase).
+    """
+    from py_clob_client.client import ClobClient as SdkClobClient
+
+    s = get_settings()
+    sdk = SdkClobClient(
+        host=s.polymarket_clob_api,
+        chain_id=s.polygon_chain_id,
+        key=private_key,
+        signature_type=signature_type,
+        funder=proxy_address,
+    )
+    creds = sdk.create_or_derive_api_creds()
+    return creds.api_key, creds.api_secret, creds.api_passphrase
+
+
 class ClobClient:
     def __init__(self, creds: CredBundle) -> None:
         self._creds = creds
