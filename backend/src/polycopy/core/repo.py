@@ -255,6 +255,20 @@ async def spent_today_usd(session: AsyncSession, user: User) -> float:
     return float(res.scalar_one() or 0.0)
 
 
+async def list_pending_fills(session: AsyncSession, limit: int = 200) -> list[CopiedTrade]:
+    """Submitted/partial trades with an exchange order id awaiting reconciliation."""
+    res = await session.execute(
+        select(CopiedTrade)
+        .where(
+            CopiedTrade.status.in_(("submitted", "partial")),
+            CopiedTrade.our_order_id.is_not(None),
+        )
+        .order_by(CopiedTrade.created_at.asc())
+        .limit(limit)
+    )
+    return list(res.scalars().all())
+
+
 async def list_copied_trades(
     session: AsyncSession, user: User, limit: int = 50
 ) -> list[CopiedTrade]:

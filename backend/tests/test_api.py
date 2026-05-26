@@ -58,6 +58,29 @@ async def test_me_with_token(client):
     assert body["linked"] is False
 
 
+async def test_pnl_no_wallet(client):
+    from polycopy.core import repo
+
+    async with client._maker() as s:
+        user = await repo.get_or_create_user(s, telegram_id=600)
+        trader = await repo.get_or_create_trader(s, wallet="0xt")
+        await repo.record_copied_trade(
+            s, user_id=user.id, trader_id=trader.id, market_id="m", outcome="YES",
+            side="BUY", leader_price=0.5, leader_size=10, status="skipped",
+            skip_reason="below minimum",
+        )
+        await s.commit()
+
+    token = make_session_token(600)
+    r = await client.get("/api/me/pnl", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    body = r.json()
+    # No credentials => no wallet metrics, but trade counts still reported.
+    assert body["wallet_address"] is None
+    assert body["portfolio_value"] == 0
+    assert body["trades_skipped"] == 1
+
+
 async def test_top_traders(client):
     from polycopy.core import repo
 

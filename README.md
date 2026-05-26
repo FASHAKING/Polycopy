@@ -101,9 +101,14 @@ Core build complete (Phases 1–9): Polymarket clients, DB layer, Telegram bot
 (link/follow/auto/risk), watcher + mirror engine, auto-scout with realized
 win-rate scoring, risk caps, and the web dashboard. Test suite: `make test`.
 
+Order-fill reconciliation: a worker polls each `submitted`/`partial` order via
+the user's CLOB client and advances it to `filled` / `partial` / `canceled`,
+recording the matched size and fill price. The dashboard's Performance section
+shows portfolio value, unrealized + realized P&L, win rate, and execution
+counts, computed live from the user's wallet.
+
 Not yet wired (intentionally): Alembic migrations (currently `create_all` on
-startup), realized-PnL backfill for copied trades, and order-fill reconciliation
-(orders are placed as marketable limits and recorded as `submitted`).
+startup).
 
 Needs live verification before real funds flow through **created** wallets: the
 on-chain trading approvals in `core/wallet.py` (`ensure_trading_allowances`) set

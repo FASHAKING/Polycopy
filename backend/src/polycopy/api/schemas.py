@@ -68,3 +68,17 @@ class TelegramLoginIn(BaseModel):
 class TokenOut(BaseModel):
     token: str
     telegram_id: int
+
+
+class PnlOut(BaseModel):
+    wallet_address: str | None
+    portfolio_value: float
+    unrealized_pnl: float
+    realized_pnl: float
+    win_rate: float | None
+    settled_markets: int
+    open_positions: int
+    # copied-trade execution summary
+    trades_filled: int
+    trades_submitted: int
+    trades_skipped: int

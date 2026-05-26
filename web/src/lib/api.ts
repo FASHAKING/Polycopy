@@ -39,6 +39,19 @@ export type Follow = {
   created_at: string;
 };
 
+export type Pnl = {
+  wallet_address: string | null;
+  portfolio_value: number;
+  unrealized_pnl: number;
+  realized_pnl: number;
+  win_rate: number | null;
+  settled_markets: number;
+  open_positions: number;
+  trades_filled: number;
+  trades_submitted: number;
+  trades_skipped: number;
+};
+
 export type CopiedTrade = {
   market_question: string | null;
   outcome: string;
@@ -73,6 +86,7 @@ export const api = {
   me: (token: string) => get<Me>("/api/me", token),
   myFollows: (token: string) => get<Follow[]>("/api/me/follows", token),
   myTrades: (token: string) => get<CopiedTrade[]>("/api/me/trades", token),
+  myPnl: (token: string) => get<Pnl>("/api/me/pnl", token),
   authTelegram: async (payload: Record<string, unknown>) => {
     const r = await fetch(`${API_BASE}/api/auth/telegram`, {
       method: "POST",

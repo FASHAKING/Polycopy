@@ -22,6 +22,12 @@ async def _scout_tick() -> None:
     await scout_once()
 
 
+async def _reconcile_tick() -> None:
+    from polycopy.workers.reconcile import reconcile_once
+
+    await reconcile_once()
+
+
 async def run_async() -> None:
     configure_logging()
     settings = get_settings()
@@ -30,12 +36,14 @@ async def run_async() -> None:
     scheduler = AsyncIOScheduler(job_defaults={"coalesce": True, "max_instances": 1})
     scheduler.add_job(_watcher_tick, "interval", seconds=settings.watcher_poll_interval)
     scheduler.add_job(_scout_tick, "interval", seconds=settings.scout_poll_interval)
+    scheduler.add_job(_reconcile_tick, "interval", seconds=settings.reconcile_poll_interval)
     scheduler.start()
 
     log.info(
         "worker.startup",
         watcher_interval=settings.watcher_poll_interval,
         scout_interval=settings.scout_poll_interval,
+        reconcile_interval=settings.reconcile_poll_interval,
     )
 
     stop = asyncio.Event()

@@ -7,8 +7,10 @@ import {
   CopiedTrade,
   Follow,
   Me,
+  Pnl,
   api,
   pct,
+  usd,
 } from "@/lib/api";
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "";
@@ -23,6 +25,7 @@ function statusColor(status: string) {
 export default function Dashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [me, setMe] = useState<Me | null>(null);
+  const [pnl, setPnl] = useState<Pnl | null>(null);
   const [follows, setFollows] = useState<Follow[]>([]);
   const [trades, setTrades] = useState<CopiedTrade[]>([]);
   const [ready, setReady] = useState(false);
@@ -38,6 +41,7 @@ export default function Dashboard() {
     setMe(m);
     setFollows((await api.myFollows(tok)) || []);
     setTrades((await api.myTrades(tok)) || []);
+    setPnl(await api.myPnl(tok));
     setReady(true);
   }, []);
 
@@ -139,6 +143,31 @@ export default function Dashboard() {
             <Card title="Copying">{follows.length}</Card>
           </section>
 
+          {pnl && (
+            <section className="mt-8">
+              <h2 className="mb-3 text-sm uppercase tracking-wider text-zinc-400">
+                Performance
+              </h2>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Card title="Portfolio value">{usd(pnl.portfolio_value)}</Card>
+                <Card title="Unrealized P&L">
+                  <Pl value={pnl.unrealized_pnl} />
+                </Card>
+                <Card title="Realized P&L">
+                  <Pl value={pnl.realized_pnl} />
+                </Card>
+                <Card title="Win rate">
+                  {pct(pnl.win_rate)}
+                  <div className="text-xs text-zinc-500">{pnl.settled_markets} settled</div>
+                </Card>
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">
+                {pnl.trades_filled} filled · {pnl.trades_submitted} pending ·{" "}
+                {pnl.trades_skipped} skipped · {pnl.open_positions} open positions
+              </p>
+            </section>
+          )}
+
           <section className="mt-10">
             <h2 className="mb-3 text-sm uppercase tracking-wider text-zinc-400">
               Copying ({follows.length})
@@ -207,6 +236,12 @@ export default function Dashboard() {
       )}
     </main>
   );
+}
+
+function Pl({ value }: { value: number }) {
+  const color = value > 0 ? "text-emerald-400" : value < 0 ? "text-rose-400" : "text-zinc-300";
+  const sign = value > 0 ? "+" : "";
+  return <span className={color}>{sign}{usd(value)}</span>;
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {

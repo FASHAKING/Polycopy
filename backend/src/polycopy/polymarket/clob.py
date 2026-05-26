@@ -31,6 +31,26 @@ class OrderResult:
 
 
 @dataclass
+class OrderStatus:
+    raw_status: str  # LIVE | MATCHED | CANCELED | UNMATCHED | ...
+    original_size: float
+    size_matched: float
+    price: float | None
+    found: bool = True
+
+    @property
+    def resolved(self) -> str:
+        """Map the exchange status to our CopiedTrade.status vocabulary."""
+        if not self.found or self.raw_status in ("CANCELED", "UNMATCHED"):
+            return "canceled"
+        if self.size_matched <= 0:
+            return "submitted"  # still open / unfilled
+        if self.size_matched >= self.original_size:
+            return "filled"
+        return "partial"
+
+
+@dataclass
 class CredBundle:
     proxy_address: str
     private_key: str
@@ -130,3 +150,28 @@ class ClobClient:
         status = resp.get("status")
         success = bool(resp.get("success", order_id is not None))
         return OrderResult(accepted=success, order_id=order_id, status=status)
+
+    def get_order_status(self, order_id: str) -> OrderStatus:
+        """Fetch an order's current fill state. Blocking; run in a thread."""
+        sdk = self._ensure_client()
+        try:
+            order = sdk.get_order(order_id)
+        except Exception as exc:  # noqa: BLE001 - missing/expired orders 404
+            log.info("clob.get_order_failed", order_id=order_id, error=str(exc))
+            return OrderStatus("", 0.0, 0.0, None, found=False)
+        if not isinstance(order, dict):
+            return OrderStatus("", 0.0, 0.0, None, found=False)
+
+        def _f(key: str) -> float:
+            try:
+                return float(order.get(key) or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        price = _f("price")
+        return OrderStatus(
+            raw_status=str(order.get("status", "")),
+            original_size=_f("original_size"),
+            size_matched=_f("size_matched"),
+            price=price or None,
+        )
