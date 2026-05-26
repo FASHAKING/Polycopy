@@ -24,18 +24,21 @@ Polymarket copy-trading Telegram bot with a public web dashboard.
 └── .env.example
 ```
 
-Non-custodial of funds: balances stay in each user's own Polymarket account. To
-place orders the bot needs the user's signing key (Polymarket requires the order
-to be signed by the funder's key); it's stored encrypted at rest with a Fernet
-key and the L2 API creds are derived from it. Users are advised to use a
-dedicated wallet funded only with trading capital.
+Custodial, multi-tenant: each Telegram user controls their own wallet. On
+onboarding a user can either **create a new custodial wallet** (the bot generates
+a Polygon keypair and holds the key, encrypted at rest with a Fernet key) or
+**link an existing Polymarket account** (they supply their own signing key).
+Either way the L2 API creds are derived from the key. Signup collects an email
+as account identity; Telegram remains the controlling auth.
 
 ## Bot commands
 
 | Command | What it does |
 |---|---|
 | `/start`, `/help` | Register / show help |
-| `/link` | Connect Polymarket (address + signing key; key message is auto-deleted) |
+| `/email you@example.com` | Sign up / set your email |
+| `/wallet` | Create a new custodial wallet or link an existing one; shows balance + deposit address |
+| `/link` | Link an existing Polymarket account (address + signing key; key message is auto-deleted) |
 | `/status` | Connection state + live portfolio value |
 | `/unlink` | Remove stored credentials |
 | `/follow <username\|wallet>` | Copy a trader (disambiguates multiple username matches) |
@@ -101,3 +104,9 @@ win-rate scoring, risk caps, and the web dashboard. Test suite: `make test`.
 Not yet wired (intentionally): Alembic migrations (currently `create_all` on
 startup), realized-PnL backfill for copied trades, and order-fill reconciliation
 (orders are placed as marketable limits and recorded as `submitted`).
+
+Needs live verification before real funds flow through **created** wallets: the
+on-chain trading approvals in `core/wallet.py` (`ensure_trading_allowances`) set
+USDC + CTF allowances for the Polymarket exchanges. They require POL (gas) in the
+created wallet and have not been verified end-to-end on Polygon. Linking an
+existing, already-approved Polymarket account avoids this path entirely.

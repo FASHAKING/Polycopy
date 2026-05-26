@@ -48,8 +48,11 @@ class CopiedTradeOut(BaseModel):
 class MeOut(BaseModel):
     telegram_id: int
     telegram_username: str | None
+    email: str | None
     auto_scout_enabled: bool
     linked: bool
+    wallet_origin: str | None
+    wallet_address: str | None
 
 
 class TelegramLoginIn(BaseModel):

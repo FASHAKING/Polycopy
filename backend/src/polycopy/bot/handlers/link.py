@@ -107,6 +107,7 @@ async def link_key(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
             api_key=api_key,
             api_secret=api_secret,
             api_passphrase=api_passphrase,
+            origin="linked",
         )
 
     # Best-effort balance readout.

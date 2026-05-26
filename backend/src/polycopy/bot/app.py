@@ -15,6 +15,7 @@ from polycopy.bot.handlers.link import (
 )
 from polycopy.bot.handlers.risk import cmd_risk
 from polycopy.bot.handlers.start import cmd_help, cmd_start
+from polycopy.bot.handlers.wallet import cmd_email, cmd_wallet, wallet_callback
 from polycopy.core.config import get_settings
 from polycopy.core.db import init_db
 from polycopy.core.logging import configure_logging, get_logger
@@ -38,7 +39,10 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("list", cmd_list))
     app.add_handler(CommandHandler("auto", cmd_auto))
     app.add_handler(CommandHandler("risk", cmd_risk))
+    app.add_handler(CommandHandler("email", cmd_email))
+    app.add_handler(CommandHandler("wallet", cmd_wallet))
     app.add_handler(CallbackQueryHandler(follow_callback, pattern=r"^follow:"))
+    app.add_handler(CallbackQueryHandler(wallet_callback, pattern=r"^wallet:"))
     return app
 
 

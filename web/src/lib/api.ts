@@ -24,8 +24,11 @@ export type Trader = {
 export type Me = {
   telegram_id: number;
   telegram_username: string | null;
+  email: string | null;
   auto_scout_enabled: boolean;
   linked: boolean;
+  wallet_origin: string | null;
+  wallet_address: string | null;
 };
 
 export type Follow = {

@@ -70,11 +70,15 @@ async def auth_telegram(payload: TelegramLoginIn, session: SessionDep) -> TokenO
 
 @router.get("/me", response_model=MeOut)
 async def get_me(user: CurrentUser, session: SessionDep) -> MeOut:
+    cred = await repo.get_credential_meta(session, user)
     return MeOut(
         telegram_id=user.telegram_id,
         telegram_username=user.telegram_username,
+        email=user.email,
         auto_scout_enabled=user.auto_scout_enabled,
-        linked=await repo.has_credentials(session, user),
+        linked=cred is not None,
+        wallet_origin=cred.origin if cred else None,
+        wallet_address=cred.proxy_address if cred else None,
     )
 
 

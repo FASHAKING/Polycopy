@@ -112,20 +112,31 @@ export default function Dashboard() {
 
       {ready && me && (
         <>
-          <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Card title="Account">
               {me.telegram_username ? `@${me.telegram_username}` : `#${me.telegram_id}`}
+              {me.email && <div className="text-xs text-zinc-500">{me.email}</div>}
             </Card>
-            <Card title="Polymarket">
-              <span className={me.linked ? "text-emerald-400" : "text-amber-400"}>
-                {me.linked ? "linked" : "not linked"}
-              </span>
+            <Card title="Wallet">
+              {me.linked ? (
+                <span className="text-emerald-400">
+                  {me.wallet_origin === "created" ? "custodial" : "linked"}
+                </span>
+              ) : (
+                <span className="text-amber-400">none</span>
+              )}
+              {me.wallet_address && (
+                <div className="font-mono text-xs text-zinc-500">
+                  {me.wallet_address.slice(0, 6)}…{me.wallet_address.slice(-4)}
+                </div>
+              )}
             </Card>
             <Card title="Auto-copy">
               <span className={me.auto_scout_enabled ? "text-emerald-400" : "text-zinc-400"}>
                 {me.auto_scout_enabled ? "on" : "off"}
               </span>
             </Card>
+            <Card title="Copying">{follows.length}</Card>
           </section>
 
           <section className="mt-10">

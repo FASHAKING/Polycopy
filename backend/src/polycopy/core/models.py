@@ -18,6 +18,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     telegram_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(254), unique=True, index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     # Risk knobs (per-user defaults; overridable per follow)
@@ -52,7 +53,8 @@ class PolymarketCredential(Base):
     # user's own Polymarket account; we only use this to sign their orders. Encrypted
     # at rest with FERNET_KEY. This is the one secret we must hold for non-custodial copy.
     private_key_enc: Mapped[str] = mapped_column(String(512))
-    signature_type: Mapped[int] = mapped_column(default=2)  # 2 = Polymarket proxy
+    signature_type: Mapped[int] = mapped_column(default=2)  # 0=EOA(created), 1/2=proxy(linked)
+    origin: Mapped[str] = mapped_column(String(16), default="linked")  # created | linked
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     user: Mapped[User] = relationship(back_populates="credentials")

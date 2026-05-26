@@ -20,6 +20,8 @@ dependencies = [
     "structlog>=24.4",
     "tenacity>=9.0",
     "itsdangerous>=2.2",
+    "eth-account>=0.13",
+    "web3>=6.20",
 ]
 
 [project.optional-dependencies]

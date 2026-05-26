@@ -41,6 +41,11 @@ async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int) -> Us
     return res.scalar_one_or_none()
 
 
+async def set_email(session: AsyncSession, user: User, email: str) -> None:
+    user.email = email.strip().lower()
+    await session.flush()
+
+
 # ---------------------------------------------------------------------------
 # Credentials (encrypted at rest)
 # ---------------------------------------------------------------------------
@@ -56,6 +61,7 @@ async def set_credentials(
     api_secret: str,
     api_passphrase: str,
     signature_type: int = 2,
+    origin: str = "linked",
 ) -> PolymarketCredential:
     """Create or replace a user's Polymarket credentials. Secrets are
     Fernet-encrypted before they ever hit the database."""
@@ -73,8 +79,17 @@ async def set_credentials(
     cred.api_passphrase_enc = crypto.encrypt(api_passphrase)
     cred.private_key_enc = crypto.encrypt(private_key)
     cred.signature_type = signature_type
+    cred.origin = origin
     await session.flush()
     return cred
+
+
+async def get_credential_meta(session: AsyncSession, user: User) -> PolymarketCredential | None:
+    """Fetch the credential row (for non-secret fields like address/origin)."""
+    res = await session.execute(
+        select(PolymarketCredential).where(PolymarketCredential.user_id == user.id)
+    )
+    return res.scalar_one_or_none()
 
 
 async def get_credential_bundle(session: AsyncSession, user: User) -> CredBundle | None:
