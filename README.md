@@ -90,15 +90,15 @@ polycopy-setup
 # Start everything (api + bot + worker) in one command:
 polycopy-run      # Ctrl-C stops them all; if one dies the rest shut down too
 
+# Add the web dashboard too — the whole stack from one command
+# (run `cd ../web && npm install` once first; needs npm on PATH):
+polycopy-run --web   # api + bot + worker + Next.js dashboard
+
 # (or run them individually in separate terminals)
 #   polycopy-api      # http://localhost:8000
 #   polycopy-bot
 #   polycopy-worker
-
-# Web dashboard (separate terminal, optional)
-cd ../web
-npm install
-npm run dev       # http://localhost:3000
+#   (cd ../web && npm install && npm run dev)   # http://localhost:3000
 ```
 
 ## First run (in paper mode — recommended)
