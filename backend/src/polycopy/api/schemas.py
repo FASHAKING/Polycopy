@@ -50,6 +50,7 @@ class MeOut(BaseModel):
     telegram_username: str | None
     email: str | None
     auto_scout_enabled: bool
+    paper_trading: bool
     linked: bool
     wallet_origin: str | None
     wallet_address: str | None
@@ -82,3 +83,4 @@ class PnlOut(BaseModel):
     trades_filled: int
     trades_submitted: int
     trades_skipped: int
+    trades_paper: int

@@ -27,6 +27,8 @@ HELP_TEXT = (
     "  /risk daycap 100 — max $ copied per day\n\n"
     "*Alerts*\n"
     "  /notify on|off — trade alerts when a trader you follow trades\n\n"
+    "*Testing*\n"
+    "  /paper on|off — simulate copies without placing real orders\n\n"
     "Non-custodial: your funds stay in your own Polymarket account."
 )
 

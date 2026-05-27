@@ -90,9 +90,16 @@ export default function Dashboard() {
           Polycopy
         </Link>
         {me && (
-          <button onClick={logout} className="text-sm text-zinc-400 hover:text-zinc-200">
-            Sign out
-          </button>
+          <div className="flex items-center gap-3">
+            {me.paper_trading && (
+              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">
+                PAPER MODE
+              </span>
+            )}
+            <button onClick={logout} className="text-sm text-zinc-400 hover:text-zinc-200">
+              Sign out
+            </button>
+          </div>
         )}
       </header>
 
@@ -163,7 +170,8 @@ export default function Dashboard() {
               </div>
               <p className="mt-2 text-xs text-zinc-500">
                 {pnl.trades_filled} filled · {pnl.trades_submitted} pending ·{" "}
-                {pnl.trades_skipped} skipped · {pnl.open_positions} open positions
+                {pnl.trades_paper} paper · {pnl.trades_skipped} skipped ·{" "}
+                {pnl.open_positions} open positions
               </p>
             </section>
           )}

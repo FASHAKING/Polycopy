@@ -45,6 +45,8 @@ as account identity; Telegram remains the controlling auth.
 | `/unfollow <username\|wallet>`, `/list` | Manage who you copy |
 | `/auto on\|off\|status` | Auto-follow profitable, active traders in a 60–80% win-rate band |
 | `/risk` | View/set caps: `size`, `slippage`, `maxtrade`, `daycap` |
+| `/paper on\|off` | Dry-run: simulate copies without placing real orders |
+| `/notify on\|off` | Trade alerts when a trader you follow trades |
 
 ## How trader selection works
 

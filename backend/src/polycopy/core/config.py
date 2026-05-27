@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     app_env: str = "dev"
     app_secret: str = "change-me"
     fernet_key: str = ""
+    # Global kill switch: when true, NO real orders are placed for anyone —
+    # every copy is simulated (paper) end-to-end. Per-user /paper also exists.
+    paper_trading: bool = False
 
     telegram_bot_token: str = ""
     telegram_bot_username: str = ""

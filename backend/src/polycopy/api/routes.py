@@ -79,6 +79,7 @@ async def get_me(user: CurrentUser, session: SessionDep) -> MeOut:
         telegram_username=user.telegram_username,
         email=user.email,
         auto_scout_enabled=user.auto_scout_enabled,
+        paper_trading=user.paper_trading,
         linked=cred is not None,
         wallet_origin=cred.origin if cred else None,
         wallet_address=cred.proxy_address if cred else None,
@@ -146,6 +147,7 @@ async def my_pnl(user: CurrentUser, session: SessionDep) -> PnlOut:
         trades_filled=status_counts.get("filled", 0),
         trades_submitted=status_counts.get("submitted", 0) + status_counts.get("partial", 0),
         trades_skipped=status_counts.get("skipped", 0),
+        trades_paper=status_counts.get("paper", 0),
     )
 
 

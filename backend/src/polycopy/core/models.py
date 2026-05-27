@@ -28,6 +28,8 @@ class User(Base):
     daily_spend_cap_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
     auto_scout_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Per-user dry run: simulate copies without placing real orders.
+    paper_trading: Mapped[bool] = mapped_column(Boolean, default=False)
 
     credentials: Mapped["PolymarketCredential | None"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"

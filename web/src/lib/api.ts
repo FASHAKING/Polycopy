@@ -26,6 +26,7 @@ export type Me = {
   telegram_username: string | null;
   email: string | null;
   auto_scout_enabled: boolean;
+  paper_trading: boolean;
   linked: boolean;
   wallet_origin: string | null;
   wallet_address: string | null;
@@ -50,6 +51,7 @@ export type Pnl = {
   trades_filled: number;
   trades_submitted: number;
   trades_skipped: number;
+  trades_paper: number;
 };
 
 export type CopiedTrade = {

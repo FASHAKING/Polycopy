@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet
 # (key, default, comment) — defaults used when the operator just presses Enter.
 ENV_SPEC: list[tuple[str, str, str]] = [
     ("APP_ENV", "prod", "dev | prod"),
+    ("PAPER_TRADING", "false", "true = simulate all copies, place no real orders"),
     ("TELEGRAM_BOT_TOKEN", "", "from @BotFather"),
     ("TELEGRAM_BOT_USERNAME", "", "bot username without @ (for the web login widget)"),
     ("DATABASE_URL", "sqlite+aiosqlite:///./polycopy.db", "sqlite for dev, postgres for prod"),
@@ -102,6 +103,10 @@ def main() -> None:
     print("\n--- Secrets (auto-generated; just press Enter) ---")
     values["FERNET_KEY"] = _ask("Fernet key", secret_default=generate_fernet_key())
     values["APP_SECRET"] = _ask("App secret", secret_default=generate_secret())
+
+    print("\n--- Safety ---")
+    paper = _ask("Start in PAPER mode (simulate, no real trades)? [Y/n]", "Y")
+    values["PAPER_TRADING"] = "false" if paper.lower().startswith("n") else "true"
 
     print("\n--- Web dashboard ---")
     values["NEXT_PUBLIC_API_URL"] = _ask(

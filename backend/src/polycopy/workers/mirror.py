@@ -82,7 +82,13 @@ def format_copy_notification(
         f"{trade.outcome or '?'} · {trade.side} @ ${trade.price:.2f}\n"
         f"_{market}_\n"
     )
-    if status in ("submitted", "filled"):
+    if status == "paper":
+        notional = (our_size or 0) * trade.price
+        tail = (
+            f"\n📝 *Paper trade* — would copy {our_size:g} shares "
+            f"(~${notional:,.2f}). No real order placed."
+        )
+    elif status in ("submitted", "filled"):
         notional = (our_size or 0) * trade.price
         tail = f"\n✅ Copying *{our_size:g}* shares (~${notional:,.2f}) into your wallet"
     elif status == "rejected":
@@ -178,6 +184,24 @@ async def execute_mirror(
 
     order = decision.order
     order.size = risk.size
+
+    # Paper mode: run everything except the real order placement.
+    from polycopy.core.config import get_settings
+
+    if get_settings().paper_trading or getattr(user, "paper_trading", False):
+        await repo.record_copied_trade(
+            session,
+            status="paper",
+            our_price=decision.our_price,
+            our_size=risk.size,
+            **common,
+        )
+        log.info("mirror.paper", user=user.id, trader=trader.wallet, size=risk.size)
+        await _maybe_notify_copy(
+            user, trader, trade, status="paper", our_size=risk.size, reason=None
+        )
+        return
+
     client = ClobClient(creds)
     result = await asyncio.to_thread(client.place_order, order)
 
