@@ -116,10 +116,10 @@ def main() -> None:
 
     env_path.write_text(render_env(values), encoding="utf-8")
     print(f"\n✅ Wrote {env_path}")
-    print("\nNext steps — run each in its own terminal from the backend/ folder:")
-    print("  polycopy-api        # http://localhost:8000")
-    print("  polycopy-bot")
-    print("  polycopy-worker")
+    print("\nNext step — start everything with one command from the backend/ folder:")
+    print("  polycopy-run          # api + bot + worker")
+    print("  polycopy-run --web    # …plus the dashboard at http://localhost:3000")
+    print("\n(or run polycopy-api / polycopy-bot / polycopy-worker individually.)")
     print("\nThen open the bot in Telegram and send /start.\n")
 
 

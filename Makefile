@@ -1,4 +1,8 @@
-.PHONY: install test lint run-api run-bot run-worker web up down fmt
+.PHONY: install test lint run-api run-bot run-worker web up down fmt start
+
+# One command: setup (first run) + api + bot + worker + web
+start:
+	bash scripts/start.sh
 
 install:
 	cd backend && pip install -e ".[dev]"
