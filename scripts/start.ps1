@@ -2,10 +2,11 @@
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\start.ps1            # setup then api + bot + worker + web
 #   powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -NoWeb     # ...backend only
+#   powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -Dev       # ...also install dev tools
 #
 # Idempotent: creates the virtualenv, installs deps, runs the setup wizard the
 # first time (no .env yet), then starts everything. Re-running just relaunches.
-param([switch]$NoWeb)
+param([switch]$NoWeb, [switch]$Dev)
 
 $ErrorActionPreference = "Stop"
 
@@ -19,11 +20,20 @@ if (-not (Test-Path ".venv")) {
 }
 . .\.venv\Scripts\Activate.ps1
 
-# 2. Backend deps (skip if already importable)
+# 2. Backend deps (skip if already importable). Runtime-only by default — a
+#    server doesn't need ruff/mypy/pytest, and pulling them makes pip's resolver
+#    churn. Pass -Dev for the full toolchain.
 python -c "import polycopy" 2>$null
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "[start] installing backend..."
-  pip install -e ".[dev]"
+  Write-Host "[start] upgrading pip..."
+  python -m pip install --upgrade pip | Out-Null
+  if ($Dev) {
+    Write-Host "[start] installing backend (with dev tools)..."
+    pip install -e ".[dev]"
+  } else {
+    Write-Host "[start] installing backend..."
+    pip install -e .
+  }
 }
 
 # 3. Web deps (only if wanted, npm present, and not already installed)
