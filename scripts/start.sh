@@ -3,6 +3,7 @@
 #
 #   bash scripts/start.sh            # setup (first run) then api + bot + worker + web
 #   bash scripts/start.sh --no-web   # …backend only
+#   bash scripts/start.sh --dev      # …also install dev tools (ruff/mypy/pytest)
 #
 # Idempotent: creates the virtualenv, installs deps, runs the setup wizard the
 # first time (no .env yet), then starts everything. Re-running just relaunches.
@@ -14,6 +15,15 @@ cd "$ROOT/backend"
 
 PYTHON="${PYTHON:-python3}"
 
+WANT_WEB=1
+WANT_DEV=0
+for arg in "$@"; do
+  case "$arg" in
+    --no-web) WANT_WEB=0 ;;
+    --dev) WANT_DEV=1 ;;
+  esac
+done
+
 # 1. Python virtualenv
 if [ ! -d .venv ]; then
   echo "[start] creating virtualenv…"
@@ -22,16 +32,20 @@ fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-# 2. Backend deps (skip if already importable)
+# 2. Backend deps (skip if already importable). Runtime-only by default — a
+#    server doesn't need ruff/mypy/pytest, and pulling them makes pip's resolver
+#    churn. Pass --dev for the full toolchain.
 if ! python -c "import polycopy" >/dev/null 2>&1; then
-  echo "[start] installing backend…"
-  pip install -e ".[dev]"
+  echo "[start] upgrading pip…"
+  python -m pip install --upgrade pip >/dev/null
+  if [ "$WANT_DEV" = 1 ]; then
+    echo "[start] installing backend (with dev tools)…"
+    pip install -e ".[dev]"
+  else
+    echo "[start] installing backend…"
+    pip install -e .
+  fi
 fi
-
-WANT_WEB=1
-for arg in "$@"; do
-  [ "$arg" = "--no-web" ] && WANT_WEB=0
-done
 
 # 3. Web deps (only if wanted, npm present, and not already installed)
 if [ "$WANT_WEB" = 1 ] && command -v npm >/dev/null 2>&1 \
