@@ -28,6 +28,7 @@ ENV_SPEC: list[tuple[str, str, str]] = [
     ("WATCHER_POLL_INTERVAL", "15", "seconds between checks for new leader trades"),
     ("SCOUT_POLL_INTERVAL", "3600", "seconds between leaderboard rescans"),
     ("RECONCILE_POLL_INTERVAL", "30", "seconds between order-fill checks"),
+    ("CORS_ORIGINS", "*", "comma-separated allowed origins; set explicit ones in prod"),
     ("NEXT_PUBLIC_API_URL", "http://localhost:8000", "browser-reachable API URL for the web app"),
     ("NEXT_PUBLIC_TELEGRAM_BOT_USERNAME", "", "bot username for the dashboard login widget"),
 ]

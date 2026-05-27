@@ -31,6 +31,30 @@ class Settings(BaseSettings):
     polygon_chain_id: int = 137
 
     web_public_api_url: str = "http://localhost:8000"
+    # Comma-separated allowed origins for the API. "*" is fine for local dev;
+    # set explicit origins in production.
+    cors_origins: str = "*"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def is_prod(self) -> bool:
+        return self.app_env.lower() in ("prod", "production")
+
+    def check_production_secrets(self) -> list[str]:
+        """Return a list of insecure-default problems when running in prod."""
+        problems: list[str] = []
+        if not self.is_prod:
+            return problems
+        if not self.fernet_key:
+            problems.append("FERNET_KEY is not set")
+        if self.app_secret in ("", "change-me"):
+            problems.append("APP_SECRET is unset or still the default")
+        if self.cors_origins.strip() == "*":
+            problems.append("CORS_ORIGINS is '*' — set explicit origins in production")
+        return problems
 
     watcher_poll_interval: int = Field(default=15, ge=2)
     scout_poll_interval: int = Field(default=3600, ge=60)

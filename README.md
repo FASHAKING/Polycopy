@@ -98,6 +98,41 @@ npm install
 npm run dev       # http://localhost:3000
 ```
 
+## First run (in paper mode — recommended)
+
+Paper mode runs the whole copy pipeline against live Polymarket data but places
+**no real orders**, so you can confirm everything works with zero risk. A fresh
+`polycopy-setup` defaults to paper mode on.
+
+1. **Configure**: `polycopy-setup` → answer prompts → keep "Start in PAPER mode" = **Y**.
+2. **Launch** (three terminals from `backend/`, or `docker compose up --build`):
+   ```bash
+   polycopy-api      # http://localhost:8000
+   polycopy-bot
+   polycopy-worker
+   ```
+3. **In Telegram**: `/start` → `/email you@example.com` → `/wallet` (create or link).
+4. **Confirm paper is on**: `/paper status` → should say *ON* (forced globally).
+5. **Follow a live trader**: `/follow <username>` (try an active one), or `/auto on`.
+6. **Watch it work**: when that trader trades, you'll get a
+   "📝 Paper trade — would copy N shares" alert. The dashboard shows the copy
+   under a **PAPER MODE** badge. No funds move.
+7. **Go live** only once paper behaves as expected:
+   - `/risk maxtrade 2` and `/risk daycap 5` (tiny caps for the first real trade)
+   - fund/approve the wallet (or use a linked, already-approved account)
+   - `/paper off`, then watch one real trade round-trip before lifting caps.
+
+## Database migrations
+
+The app auto-creates tables on startup for quick dev. For production, manage the
+schema with Alembic instead:
+
+```bash
+cd backend
+alembic upgrade head        # apply migrations
+alembic revision --autogenerate -m "describe change"   # after editing models
+```
+
 ## Status
 
 Core build complete (Phases 1–9): Polymarket clients, DB layer, Telegram bot
