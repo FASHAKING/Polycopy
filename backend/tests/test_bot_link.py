@@ -5,7 +5,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from polycopy.bot.handlers import link
-from polycopy.bot.handlers.link import ASK_ADDRESS, ASK_KEY, link_address, link_key
+from polycopy.bot.handlers.link import (
+    ASK_ADDRESS,
+    ASK_KEY,
+    ASK_TYPE,
+    link_address,
+    link_key,
+    link_type,
+)
 
 GOOD_ADDR = "0x" + "a" * 40
 GOOD_KEY = "b" * 64
@@ -28,6 +35,29 @@ def _ctx():
     status_msg = SimpleNamespace(edit_text=AsyncMock())
     bot = SimpleNamespace(send_message=AsyncMock(return_value=status_msg))
     return SimpleNamespace(user_data={}, bot=bot)
+
+
+def _callback_update(data: str):
+    query = SimpleNamespace(
+        data=data,
+        answer=AsyncMock(),
+        edit_message_text=AsyncMock(),
+    )
+    return SimpleNamespace(callback_query=query)
+
+
+async def test_link_type_email_sets_signature_type():
+    upd, ctx = _callback_update("link:sig:1"), _ctx()
+    state = await link_type(upd, ctx)
+    assert state == ASK_ADDRESS
+    assert ctx.user_data["signature_type"] == 1
+
+
+async def test_link_type_wallet_sets_signature_type():
+    upd, ctx = _callback_update("link:sig:2"), _ctx()
+    state = await link_type(upd, ctx)
+    assert state == ASK_ADDRESS
+    assert ctx.user_data["signature_type"] == 2
 
 
 async def test_link_address_rejects_garbage():
@@ -55,8 +85,15 @@ async def test_link_key_deletes_message_and_rejects_bad_key():
 async def test_link_key_success_stores_creds(monkeypatch):
     upd, ctx = _update(GOOD_KEY), _ctx()
     ctx.user_data["proxy_address"] = GOOD_ADDR
+    ctx.user_data["signature_type"] = 1
 
-    monkeypatch.setattr(link, "derive_api_creds", lambda *a, **k: ("ak", "as", "ap"))
+    derive_calls = []
+
+    def fake_derive(*args, **kwargs):
+        derive_calls.append(args)
+        return ("ak", "as", "ap")
+
+    monkeypatch.setattr(link, "derive_api_creds", fake_derive)
 
     set_creds = AsyncMock()
     fake_user = SimpleNamespace(id=1)
@@ -90,6 +127,8 @@ async def test_link_key_success_stores_creds(monkeypatch):
     _, kwargs = set_creds.call_args
     assert kwargs["api_key"] == "ak"
     assert kwargs["private_key"] == "0x" + GOOD_KEY
+    assert kwargs["signature_type"] == 1
+    assert derive_calls[0] == ("0x" + GOOD_KEY, GOOD_ADDR, 1)
     assert ctx.user_data == {}  # cleared
 
 

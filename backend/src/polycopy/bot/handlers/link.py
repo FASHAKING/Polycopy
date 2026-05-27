@@ -1,8 +1,9 @@
 import asyncio
 import re
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     ConversationHandler,
@@ -18,10 +19,16 @@ from polycopy.polymarket.data_api import PolymarketDataClient
 
 log = get_logger(__name__)
 
-ASK_ADDRESS, ASK_KEY = range(2)
+ASK_TYPE, ASK_ADDRESS, ASK_KEY = range(3)
 
 _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 _PRIVKEY_RE = re.compile(r"^(0x)?[0-9a-fA-F]{64}$")
+
+# Polymarket signs orders differently depending on how the account was created.
+# Email/Google sign-ups are Magic proxy wallets (POLY_PROXY = 1); browser-wallet
+# connections (MetaMask, etc.) are Gnosis-Safe proxies (POLY_GNOSIS_SAFE = 2).
+_SIG_EMAIL = 1
+_SIG_WALLET = 2
 
 
 async def link_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -29,6 +36,12 @@ async def link_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text("Please /link in a private chat with me, not a group.")
         return ConversationHandler.END
 
+    keyboard = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("📧 Email / Google login", callback_data=f"link:sig:{_SIG_EMAIL}")],
+            [InlineKeyboardButton("🦊 Browser wallet (MetaMask…)", callback_data=f"link:sig:{_SIG_WALLET}")],
+        ]
+    )
     await update.message.reply_text(
         "⚠️ *Connect your Polymarket account*\n\n"
         "I am *non-custodial*: your funds never leave your own Polymarket account. "
@@ -36,9 +49,25 @@ async def link_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         "*Strong advice:* use a dedicated wallet funded with only the capital you "
         "want to trade. I will delete your key message from this chat the instant I "
         "read it.\n\n"
-        "First, send your *Polymarket address* (the 0x... funder address shown in "
-        "your Polymarket profile).\n\n"
+        "First — *how did you sign up for Polymarket?* This tells me how to sign your "
+        "orders correctly.\n\n"
         "Send /cancel any time to abort.",
+        parse_mode="Markdown",
+        reply_markup=keyboard,
+    )
+    return ASK_TYPE
+
+
+async def link_type(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    sig = int(query.data.rsplit(":", 1)[1])
+    ctx.user_data["signature_type"] = sig
+    label = "email / Google login" if sig == _SIG_EMAIL else "browser wallet"
+    await query.edit_message_text(
+        f"Account type: *{label}*.\n\n"
+        "Now send your *Polymarket address* (the 0x... funder address shown in "
+        "your Polymarket profile).",
         parse_mode="Markdown",
     )
     return ASK_ADDRESS
@@ -80,11 +109,12 @@ async def link_key(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         private_key = "0x" + private_key
 
     proxy_address = ctx.user_data["proxy_address"]
+    signature_type = ctx.user_data.get("signature_type", _SIG_WALLET)
     status = await ctx.bot.send_message(update.effective_chat.id, "Verifying credentials…")
 
     try:
         api_key, api_secret, api_passphrase = await asyncio.to_thread(
-            derive_api_creds, private_key, proxy_address
+            derive_api_creds, private_key, proxy_address, signature_type
         )
     except Exception as exc:  # noqa: BLE001 - surface a friendly message
         log.warning("link.derive_failed", error=str(exc))
@@ -107,6 +137,7 @@ async def link_key(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
             api_key=api_key,
             api_secret=api_secret,
             api_passphrase=api_passphrase,
+            signature_type=signature_type,
             origin="linked",
         )
 
@@ -182,6 +213,7 @@ def build_link_conversation() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[CommandHandler("link", link_start)],
         states={
+            ASK_TYPE: [CallbackQueryHandler(link_type, pattern=r"^link:sig:")],
             ASK_ADDRESS: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, link_address)
             ],
