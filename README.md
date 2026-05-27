@@ -73,33 +73,110 @@ worker + web. For a real deploy (Railway/Fly/VPS):
 - Run the three backend processes (`polycopy-api`, `polycopy-bot`,
   `polycopy-worker`) from the same image with different commands.
 
-## Quickstart (local dev)
+## Startup guide
 
-Prerequisites: Python 3.11+, Node 20+, Docker (optional).
+Two ways to run Polycopy:
 
-```bash
-# Backend
-cd backend
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+- **From source** — a Python virtualenv for the backend plus (optionally) Node
+  for the dashboard. Best for development and light VPS deployments. Guides below
+  for **Windows (PowerShell)** and **Linux (VPS)**.
+- **Docker** — one command brings up Postgres + api + bot + worker + web. See
+  [Docker](#docker-any-os).
+
+Either way, local dev defaults to a file-based SQLite database, so you don't
+need Postgres to get started.
+
+### Windows (PowerShell)
+
+Prerequisites: [Python 3.11+](https://www.python.org/downloads/windows/) (tick
+"Add python.exe to PATH" in the installer) and, for the dashboard,
+[Node 20+](https://nodejs.org/). Open **Windows PowerShell** and run:
+
+```powershell
+# Clone and enter the backend
+git clone https://github.com/FASHAKING/Polycopy.git
+cd Polycopy\backend
+
+# Create + activate a virtualenv
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+# If activation is blocked, allow scripts for this user once:
+#   Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+# Install the backend
 pip install -e ".[dev]"
 
-# Interactive setup — asks for the few required details and writes .env
-# (auto-generates FERNET_KEY + APP_SECRET; works on Linux/macOS/Windows PowerShell)
+# Interactive setup — writes ..\.env (auto-generates FERNET_KEY + APP_SECRET).
+# Keep "Start in PAPER mode" = Y for a safe first run.
 polycopy-setup
 
-# Start everything (api + bot + worker) in one command:
-polycopy-run      # Ctrl-C stops them all; if one dies the rest shut down too
+# (optional) install the dashboard so you can use --web below
+cd ..\web ; npm install ; cd ..\backend
 
-# Add the web dashboard too — the whole stack from one command
-# (run `cd ../web && npm install` once first; needs npm on PATH):
-polycopy-run --web   # api + bot + worker + Next.js dashboard
-
-# (or run them individually in separate terminals)
-#   polycopy-api      # http://localhost:8000
-#   polycopy-bot
-#   polycopy-worker
-#   (cd ../web && npm install && npm run dev)   # http://localhost:3000
+# Start everything in one command (Ctrl-C stops them all):
+polycopy-run          # api + bot + worker
+polycopy-run --web    # …plus the Next.js dashboard at http://localhost:3000
 ```
+
+### Linux (VPS)
+
+Prerequisites: Python 3.11+ and (for the dashboard) Node 20+. On a fresh
+Ubuntu/Debian box:
+
+```bash
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip git
+# Optional, only if you want the dashboard:
+#   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs
+
+# Clone and enter the backend
+git clone https://github.com/FASHAKING/Polycopy.git
+cd Polycopy/backend
+
+# Create + activate a virtualenv
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install the backend
+pip install -e ".[dev]"
+
+# Interactive setup — writes ../.env (auto-generates FERNET_KEY + APP_SECRET).
+# Keep "Start in PAPER mode" = Y for a safe first run.
+polycopy-setup
+
+# (optional) install the dashboard so you can use --web below
+( cd ../web && npm install )
+
+# Start everything in one command (Ctrl-C stops them all):
+polycopy-run          # api + bot + worker
+polycopy-run --web    # …plus the Next.js dashboard at http://localhost:3000
+```
+
+To keep it running after you log out, start it under a process manager
+(`systemd`, `pm2`, `supervisor`) or inside `tmux`/`screen`. Quick `tmux` option:
+
+```bash
+tmux new -s polycopy
+source .venv/bin/activate && polycopy-run --web
+# detach with Ctrl-b then d; reattach later with: tmux attach -t polycopy
+```
+
+> **Note:** `--web` is skipped automatically if `npm` isn't on `PATH` or the
+> `web/` directory is missing — the backend still starts. Run the three
+> services individually instead with `polycopy-api`, `polycopy-bot`,
+> `polycopy-worker` (and `cd ../web && npm run dev` for the dashboard).
+
+### Docker (any OS)
+
+Prerequisites: Docker + Docker Compose. From the repo root:
+
+```bash
+cp .env.example .env   # then edit .env (at minimum set TELEGRAM_BOT_TOKEN, FERNET_KEY)
+docker compose up --build
+```
+
+This runs Postgres + api + bot + worker + web together. The dashboard is at
+http://localhost:3000 and the API at http://localhost:8000.
 
 ## First run (in paper mode — recommended)
 
