@@ -87,12 +87,15 @@ pip install -e ".[dev]"
 # (auto-generates FERNET_KEY + APP_SECRET; works on Linux/macOS/Windows PowerShell)
 polycopy-setup
 
-# Run all three processes in separate terminals:
-polycopy-api      # http://localhost:8000
-polycopy-bot
-polycopy-worker
+# Start everything (api + bot + worker) in one command:
+polycopy-run      # Ctrl-C stops them all; if one dies the rest shut down too
 
-# Web (separate terminal)
+# (or run them individually in separate terminals)
+#   polycopy-api      # http://localhost:8000
+#   polycopy-bot
+#   polycopy-worker
+
+# Web dashboard (separate terminal, optional)
 cd ../web
 npm install
 npm run dev       # http://localhost:3000
@@ -105,11 +108,9 @@ Paper mode runs the whole copy pipeline against live Polymarket data but places
 `polycopy-setup` defaults to paper mode on.
 
 1. **Configure**: `polycopy-setup` → answer prompts → keep "Start in PAPER mode" = **Y**.
-2. **Launch** (three terminals from `backend/`, or `docker compose up --build`):
+2. **Launch** (one command from `backend/`, or `docker compose up --build`):
    ```bash
-   polycopy-api      # http://localhost:8000
-   polycopy-bot
-   polycopy-worker
+   polycopy-run      # starts api + bot + worker together; Ctrl-C stops all
    ```
 3. **In Telegram**: `/start` → `/email you@example.com` → `/wallet` (create or link).
 4. **Confirm paper is on**: `/paper status` → should say *ON* (forced globally).

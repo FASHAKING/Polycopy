@@ -35,6 +35,7 @@ dev = [
 
 [project.scripts]
 polycopy-setup = "polycopy.setup_cli:main"
+polycopy-run = "polycopy.run_cli:main"
 polycopy-api = "polycopy.api.__main__:main"
 polycopy-bot = "polycopy.bot.__main__:main"
 polycopy-worker = "polycopy.workers.__main__:main"
