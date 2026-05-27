@@ -89,34 +89,36 @@ need Postgres to get started.
 ### Windows (PowerShell)
 
 Prerequisites: [Python 3.11+](https://www.python.org/downloads/windows/) (tick
-"Add python.exe to PATH" in the installer) and, for the dashboard,
-[Node 20+](https://nodejs.org/). Open **Windows PowerShell** and run:
+"Add python.exe to PATH" in the installer), [Git](https://git-scm.com/download/win),
+and — for the dashboard — [Node 20+](https://nodejs.org/). Open **Windows
+PowerShell** and run the one-liner:
 
 ```powershell
-# Clone and enter the backend
 git clone https://github.com/FASHAKING/Polycopy.git
-cd Polycopy\backend
+cd Polycopy
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1
+```
 
-# Create + activate a virtualenv
+That script creates the virtualenv, installs the backend (and the dashboard if
+`npm` is present), runs the interactive setup wizard the first time, then starts
+api + bot + worker + web together. Add `-NoWeb` to skip the dashboard. Re-running
+it just relaunches. Ctrl-C stops everything.
+
+<details>
+<summary>Prefer to run the steps by hand?</summary>
+
+```powershell
+cd Polycopy\backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 # If activation is blocked, allow scripts for this user once:
 #   Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-
-# Install the backend
 pip install -e ".[dev]"
-
-# Interactive setup — writes ..\.env (auto-generates FERNET_KEY + APP_SECRET).
-# Keep "Start in PAPER mode" = Y for a safe first run.
-polycopy-setup
-
-# (optional) install the dashboard so you can use --web below
-cd ..\web ; npm install ; cd ..\backend
-
-# Start everything in one command (Ctrl-C stops them all):
-polycopy-run          # api + bot + worker
-polycopy-run --web    # …plus the Next.js dashboard at http://localhost:3000
+polycopy-setup                 # writes ..\.env (keep PAPER mode = Y for a safe first run)
+cd ..\web ; npm install ; cd ..\backend   # optional: dashboard
+polycopy-run --web             # or `polycopy-run` for backend only
 ```
+</details>
 
 ### Linux (VPS)
 
@@ -128,43 +130,46 @@ sudo apt update
 sudo apt install -y python3 python3-venv python3-pip git
 # Optional, only if you want the dashboard:
 #   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs
-
-# Clone and enter the backend
-git clone https://github.com/FASHAKING/Polycopy.git
-cd Polycopy/backend
-
-# Create + activate a virtualenv
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install the backend
-pip install -e ".[dev]"
-
-# Interactive setup — writes ../.env (auto-generates FERNET_KEY + APP_SECRET).
-# Keep "Start in PAPER mode" = Y for a safe first run.
-polycopy-setup
-
-# (optional) install the dashboard so you can use --web below
-( cd ../web && npm install )
-
-# Start everything in one command (Ctrl-C stops them all):
-polycopy-run          # api + bot + worker
-polycopy-run --web    # …plus the Next.js dashboard at http://localhost:3000
 ```
 
-To keep it running after you log out, start it under a process manager
-(`systemd`, `pm2`, `supervisor`) or inside `tmux`/`screen`. Quick `tmux` option:
+Then clone and run the one-liner:
+
+```bash
+git clone https://github.com/FASHAKING/Polycopy.git
+cd Polycopy
+bash scripts/start.sh
+```
+
+That script creates the virtualenv, installs the backend (and the dashboard if
+`npm` is present), runs the interactive setup wizard the first time, then starts
+api + bot + worker + web together. Add `--no-web` to skip the dashboard.
+Re-running it just relaunches. Ctrl-C stops everything.
+
+To keep it running after you log out, run it inside `tmux`/`screen` or under a
+process manager (`systemd`, `pm2`, `supervisor`). Quick `tmux` option:
 
 ```bash
 tmux new -s polycopy
-source .venv/bin/activate && polycopy-run --web
+bash scripts/start.sh
 # detach with Ctrl-b then d; reattach later with: tmux attach -t polycopy
 ```
 
+<details>
+<summary>Prefer to run the steps by hand?</summary>
+
+```bash
+cd Polycopy/backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+polycopy-setup                 # writes ../.env (keep PAPER mode = Y for a safe first run)
+( cd ../web && npm install )    # optional: dashboard
+polycopy-run --web             # or `polycopy-run` for backend only
+```
+</details>
+
 > **Note:** `--web` is skipped automatically if `npm` isn't on `PATH` or the
-> `web/` directory is missing — the backend still starts. Run the three
-> services individually instead with `polycopy-api`, `polycopy-bot`,
-> `polycopy-worker` (and `cd ../web && npm run dev` for the dashboard).
+> `web/` directory is missing — the backend still starts.
 
 ### Docker (any OS)
 
