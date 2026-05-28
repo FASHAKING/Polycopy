@@ -88,7 +88,13 @@ class SettingsIn(BaseModel):
     max_price: float | None = None
 
 
+class ClosePaperIn(BaseModel):
+    token_id: str
+    shares: float | None = None  # None closes the whole position
+
+
 class PaperPositionOut(BaseModel):
+    token_id: str
     market_question: str | None
     market_slug: str | None
     outcome: str
