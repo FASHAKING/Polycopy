@@ -111,6 +111,7 @@ class CopiedTrade(Base):
 
     market_id: Mapped[str] = mapped_column(String(128), index=True)
     market_question: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    market_slug: Mapped[str | None] = mapped_column(String(256), nullable=True)
     outcome: Mapped[str] = mapped_column(String(32))  # YES / NO
     side: Mapped[str] = mapped_column(String(8))  # BUY / SELL
 

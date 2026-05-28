@@ -11,6 +11,8 @@ import {
   api,
   pct,
   usd,
+  profileUrl,
+  marketUrl,
 } from "@/lib/api";
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "";
@@ -204,7 +206,14 @@ export default function Dashboard() {
                     key={f.wallet}
                     className="flex items-center justify-between rounded-md border border-zinc-800 bg-zinc-900/40 px-4 py-2 text-sm"
                   >
-                    <span>{f.display_name || `${f.wallet.slice(0, 6)}…${f.wallet.slice(-4)}`}</span>
+                    <a
+                      href={profileUrl(f.wallet)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-emerald-400 hover:underline"
+                    >
+                      {f.display_name || `${f.wallet.slice(0, 6)}…${f.wallet.slice(-4)}`}
+                    </a>
                     <span className="flex items-center gap-4">
                       <span className="text-zinc-500">{f.source}</span>
                       <span className="text-emerald-400">{pct(f.win_rate)}</span>
@@ -238,7 +247,18 @@ export default function Dashboard() {
                     {trades.map((t, i) => (
                       <tr key={i} className="hover:bg-zinc-900/30">
                         <td className="px-4 py-3 max-w-xs truncate">
-                          {t.market_question || "—"}
+                          {marketUrl(t.market_slug) ? (
+                            <a
+                              href={marketUrl(t.market_slug)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-emerald-400 hover:underline"
+                            >
+                              {t.market_question || "—"}
+                            </a>
+                          ) : (
+                            t.market_question || "—"
+                          )}
                           <span className="ml-2 text-xs text-zinc-500">{t.outcome}</span>
                         </td>
                         <td className="px-4 py-3">{t.side}</td>

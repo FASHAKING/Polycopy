@@ -56,6 +56,7 @@ export type Pnl = {
 
 export type CopiedTrade = {
   market_question: string | null;
+  market_slug: string | null;
   outcome: string;
   side: string;
   leader_price: number;
@@ -99,6 +100,16 @@ export const api = {
     return (await r.json()) as { token: string; telegram_id: number };
   },
 };
+
+export const POLYMARKET_WEB = "https://polymarket.com";
+
+export function profileUrl(wallet: string): string {
+  return `${POLYMARKET_WEB}/profile/${wallet}`;
+}
+
+export function marketUrl(slug: string | null | undefined): string | null {
+  return slug ? `${POLYMARKET_WEB}/event/${slug}` : null;
+}
 
 export function pct(x: number | null): string {
   return x === null ? "—" : `${(x * 100).toFixed(1)}%`;

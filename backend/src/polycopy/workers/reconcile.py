@@ -66,13 +66,17 @@ async def _reconcile_user(user_id: int, trades: list[CopiedTrade]) -> None:
                 and getattr(user, "notifications_enabled", True)
             )
             fill_size, fill_price, question = row.our_size, row.our_price, row.market_question
+            market_slug = row.market_slug
         log.info("reconcile.updated", trade=trade.id, status=resolved)
 
         if notify:
             from polycopy.core.notify import notify_user
+            from polycopy.polymarket.urls import market_url
 
+            label = (question or "your copied trade").strip()
+            murl = market_url(market_slug)
+            market_md = f"[{label}]({murl})" if murl else f"_{label}_"
             await notify_user(
                 user.telegram_id,
-                f"✅ *Filled*: {fill_size:g} shares @ ${fill_price:.2f}\n"
-                f"_{(question or 'your copied trade').strip()}_",
+                f"✅ *Filled*: {fill_size:g} shares @ ${fill_price:.2f}\n{market_md}",
             )

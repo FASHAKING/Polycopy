@@ -31,6 +31,7 @@ class Trade(BaseModel):
     timestamp: int
     title: str | None = None
     slug: str | None = None
+    event_slug: str | None = Field(default=None, alias="eventSlug")
     outcome: str | None = None
     outcome_index: int | None = Field(default=None, alias="outcomeIndex")
     name: str | None = None

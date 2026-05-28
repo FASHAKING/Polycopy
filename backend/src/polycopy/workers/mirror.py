@@ -14,6 +14,7 @@ from polycopy.core.logging import get_logger
 from polycopy.core.models import Follow, Trader, User
 from polycopy.polymarket.clob import ClobClient, CredBundle, OrderRequest, clamp_price
 from polycopy.polymarket.data_api import Trade
+from polycopy.polymarket.urls import market_url, profile_url
 
 log = get_logger(__name__)
 
@@ -73,14 +74,24 @@ def format_copy_notification(
     status: str,
     our_size: float | None,
     reason: str | None,
+    trader_wallet: str | None = None,
 ) -> str:
-    """Human message sent to a follower when their leader trades."""
+    """Human message sent to a follower when their leader trades.
+
+    Trader and market are rendered as Markdown links to their polymarket.com
+    pages so a follower can tap through from the Telegram alert.
+    """
     action = "opened" if trade.side.upper() == "BUY" else "closed"
     market = (trade.title or "a market").strip()
+    trader_md = (
+        f"[{trader_label}]({profile_url(trader_wallet)})" if trader_wallet else f"*{trader_label}*"
+    )
+    murl = market_url(trade.event_slug or trade.slug)
+    market_md = f"[{market}]({murl})" if murl else f"_{market}_"
     head = (
-        f"🔔 *{trader_label}* {action} a position\n"
+        f"🔔 {trader_md} {action} a position\n"
         f"{trade.outcome or '?'} · {trade.side} @ ${trade.price:.2f}\n"
-        f"_{market}_\n"
+        f"{market_md}\n"
     )
     if status == "paper":
         notional = (our_size or 0) * trade.price
@@ -112,7 +123,12 @@ async def _maybe_notify_copy(
     from polycopy.core.notify import notify_user
 
     text = format_copy_notification(
-        _trader_label(trader), trade, status=status, our_size=our_size, reason=reason
+        _trader_label(trader),
+        trade,
+        status=status,
+        our_size=our_size,
+        reason=reason,
+        trader_wallet=trader.wallet,
     )
     await notify_user(user.telegram_id, text)
 
@@ -149,6 +165,7 @@ async def execute_mirror(
         trader_id=trader.id,
         market_id=trade.condition_id,
         market_question=trade.title,
+        market_slug=trade.event_slug or trade.slug,
         outcome=trade.outcome or "",
         side=trade.side,
         leader_tx_hash=trade.tx_hash,

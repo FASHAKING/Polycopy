@@ -33,6 +33,7 @@ class FollowOut(BaseModel):
 
 class CopiedTradeOut(BaseModel):
     market_question: str | None
+    market_slug: str | None
     outcome: str
     side: str
     leader_price: float
