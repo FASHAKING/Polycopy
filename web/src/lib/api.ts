@@ -21,17 +21,29 @@ export type Trader = {
   last_scored_at: string | null;
 };
 
+export type SizingMode = "multiplier" | "proportional";
+
 export type Me = {
   telegram_id: number;
   telegram_username: string | null;
   email: string | null;
   auto_scout_enabled: boolean;
+  notifications_enabled: boolean;
   paper_trading: boolean;
   paper_starting_balance: number;
   paper_balance: number;
   linked: boolean;
   wallet_origin: string | null;
   wallet_address: string | null;
+  sizing_mode: SizingMode;
+  default_size_pct: number;
+  max_slippage_bps: number;
+  max_notional_per_trade_usd: number;
+  daily_spend_cap_usd: number;
+  max_open_exposure_usd: number;
+  max_open_positions: number;
+  min_price: number;
+  max_price: number;
 };
 
 export type SettingsUpdate = {
@@ -39,10 +51,15 @@ export type SettingsUpdate = {
   paper_balance?: number;
   auto_scout_enabled?: boolean;
   notifications_enabled?: boolean;
+  sizing_mode?: SizingMode;
   default_size_pct?: number;
   max_slippage_bps?: number;
   max_notional_per_trade_usd?: number;
   daily_spend_cap_usd?: number;
+  max_open_exposure_usd?: number;
+  max_open_positions?: number;
+  min_price?: number;
+  max_price?: number;
 };
 
 export type PaperPosition = {
@@ -93,6 +110,16 @@ export type Pnl = {
   trades_paper: number;
 };
 
+export type AccountKind = "paper" | "real";
+export type PnlRange = "hour" | "day" | "week" | "month";
+
+export type PnlPoint = { t: string; pnl: number };
+export type PnlSeries = {
+  account: AccountKind;
+  range: PnlRange;
+  points: PnlPoint[];
+};
+
 export type CopiedTrade = {
   market_question: string | null;
   market_slug: string | null;
@@ -129,6 +156,8 @@ export const api = {
   myFollows: (token: string) => get<Follow[]>("/api/me/follows", token),
   myTrades: (token: string) => get<CopiedTrade[]>("/api/me/trades", token),
   myPnl: (token: string) => get<Pnl>("/api/me/pnl", token),
+  myPnlSeries: (token: string, account: AccountKind, range: PnlRange) =>
+    get<PnlSeries>(`/api/me/pnl/series?account=${account}&range=${range}`, token),
   myPaper: (token: string) => get<PaperPortfolio>("/api/me/paper", token),
   updateSettings: async (token: string, payload: SettingsUpdate) => {
     try {

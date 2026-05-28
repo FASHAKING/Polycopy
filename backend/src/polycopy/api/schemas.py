@@ -51,12 +51,23 @@ class MeOut(BaseModel):
     telegram_username: str | None
     email: str | None
     auto_scout_enabled: bool
+    notifications_enabled: bool
     paper_trading: bool
     paper_starting_balance: float
     paper_balance: float
     linked: bool
     wallet_origin: str | None
     wallet_address: str | None
+    # Risk controls
+    sizing_mode: str
+    default_size_pct: float
+    max_slippage_bps: int
+    max_notional_per_trade_usd: float
+    daily_spend_cap_usd: float
+    max_open_exposure_usd: float
+    max_open_positions: int
+    min_price: float
+    max_price: float
 
 
 class SettingsIn(BaseModel):
@@ -66,10 +77,15 @@ class SettingsIn(BaseModel):
     paper_balance: float | None = None  # funds/resets the paper account
     auto_scout_enabled: bool | None = None
     notifications_enabled: bool | None = None
+    sizing_mode: str | None = None
     default_size_pct: float | None = None
     max_slippage_bps: int | None = None
     max_notional_per_trade_usd: float | None = None
     daily_spend_cap_usd: float | None = None
+    max_open_exposure_usd: float | None = None
+    max_open_positions: int | None = None
+    min_price: float | None = None
+    max_price: float | None = None
 
 
 class PaperPositionOut(BaseModel):
@@ -126,3 +142,14 @@ class PnlOut(BaseModel):
     trades_submitted: int
     trades_skipped: int
     trades_paper: int
+
+
+class PnlPointOut(BaseModel):
+    t: datetime
+    pnl: float
+
+
+class PnlSeriesOut(BaseModel):
+    account: str  # paper | real
+    range: str  # hour | day | week | month
+    points: list[PnlPointOut]

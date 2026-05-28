@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, select
 
@@ -9,6 +11,8 @@ from polycopy.api.schemas import (
     PaperPortfolioOut,
     PaperPositionOut,
     PnlOut,
+    PnlPointOut,
+    PnlSeriesOut,
     SettingsIn,
     StatsOut,
     TelegramLoginIn,
@@ -81,12 +85,22 @@ async def get_me(user: CurrentUser, session: SessionDep) -> MeOut:
         telegram_username=user.telegram_username,
         email=user.email,
         auto_scout_enabled=user.auto_scout_enabled,
+        notifications_enabled=user.notifications_enabled,
         paper_trading=user.paper_trading,
         paper_starting_balance=user.paper_starting_balance,
         paper_balance=user.paper_balance,
         linked=cred is not None,
         wallet_origin=cred.origin if cred else None,
         wallet_address=cred.proxy_address if cred else None,
+        sizing_mode=user.sizing_mode,
+        default_size_pct=user.default_size_pct,
+        max_slippage_bps=user.max_slippage_bps,
+        max_notional_per_trade_usd=user.max_notional_per_trade_usd,
+        daily_spend_cap_usd=user.daily_spend_cap_usd,
+        max_open_exposure_usd=user.max_open_exposure_usd,
+        max_open_positions=user.max_open_positions,
+        min_price=user.min_price,
+        max_price=user.max_price,
     )
 
 
@@ -101,6 +115,10 @@ async def update_settings(
         if amount < 0:
             raise HTTPException(status_code=422, detail="paper_balance can't be negative")
         await repo.set_paper_balance(session, user, amount)
+    if data.get("sizing_mode") not in (None, "multiplier", "proportional"):
+        raise HTTPException(
+            status_code=422, detail="sizing_mode must be 'multiplier' or 'proportional'"
+        )
     for attr, value in data.items():
         if isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0:
             raise HTTPException(status_code=422, detail=f"{attr} can't be negative")
@@ -183,6 +201,38 @@ async def my_paper(user: CurrentUser, session: SessionDep) -> PaperPortfolioOut:
             for pos in p.positions
         ],
     )
+
+
+_RANGE_DELTAS = {
+    "hour": timedelta(hours=1),
+    "day": timedelta(days=1),
+    "week": timedelta(weeks=1),
+    "month": timedelta(days=30),
+}
+
+
+@router.get("/me/pnl/series", response_model=PnlSeriesOut)
+async def my_pnl_series(
+    user: CurrentUser,
+    session: SessionDep,
+    account: str = "paper",
+    range: str = "day",
+) -> PnlSeriesOut:
+    if account not in ("paper", "real"):
+        raise HTTPException(status_code=422, detail="account must be 'paper' or 'real'")
+    if range not in _RANGE_DELTAS:
+        raise HTTPException(status_code=422, detail="invalid range")
+
+    since = datetime.utcnow() - _RANGE_DELTAS[range]
+    if account == "paper":
+        points = [
+            PnlPointOut(t=t, pnl=pnl)
+            for t, pnl in await repo.paper_pnl_series(session, user, since=since)
+        ]
+    else:
+        snaps = await repo.get_account_snapshots(session, user, account="real", since=since)
+        points = [PnlPointOut(t=s.created_at, pnl=s.pnl) for s in snaps]
+    return PnlSeriesOut(account=account, range=range, points=points)
 
 
 @router.get("/me/trades", response_model=list[CopiedTradeOut])

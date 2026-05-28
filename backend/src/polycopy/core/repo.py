@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from polycopy.core import crypto
 from polycopy.core.models import (
+    AccountSnapshot,
     CopiedTrade,
     Follow,
     PaperPosition,
@@ -241,16 +242,25 @@ async def record_copied_trade(session: AsyncSession, **fields) -> CopiedTrade:
     return trade
 
 
-async def spent_today_usd(session: AsyncSession, user: User) -> float:
-    """Sum notional (our_size * our_price) of trades submitted today (UTC)."""
+async def spent_today_usd(
+    session: AsyncSession, user: User, *, include_paper: bool = False
+) -> float:
+    """Sum notional (our_size * our_price) of trades that consumed budget today (UTC).
+
+    In paper mode simulated fills (status "paper") spend the daily budget too, so
+    pass include_paper=True to count them toward the daily spend cap.
+    """
     from sqlalchemy import func
 
+    statuses = ["submitted", "filled"]
+    if include_paper:
+        statuses.append("paper")
     start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     res = await session.execute(
         select(func.coalesce(func.sum(CopiedTrade.our_size * CopiedTrade.our_price), 0.0)).where(
             CopiedTrade.user_id == user.id,
             CopiedTrade.created_at >= start,
-            CopiedTrade.status.in_(("submitted", "filled")),
+            CopiedTrade.status.in_(statuses),
         )
     )
     return float(res.scalar_one() or 0.0)
@@ -422,6 +432,64 @@ async def paper_realized_stats(
         return 0.0, None, 0
     wins = sum(1 for p in pnls if p > 0)
     return round(sum(pnls), 2), wins / len(pnls), len(pnls)
+
+
+# ---------------------------------------------------------------------------
+# Account snapshots (P&L history for the dashboard chart)
+# ---------------------------------------------------------------------------
+
+
+async def record_account_snapshot(
+    session: AsyncSession,
+    user: User,
+    *,
+    account: str,
+    portfolio_value: float,
+    pnl: float,
+) -> AccountSnapshot:
+    snap = AccountSnapshot(
+        user_id=user.id, account=account, portfolio_value=portfolio_value, pnl=pnl
+    )
+    session.add(snap)
+    await session.flush()
+    return snap
+
+
+async def get_account_snapshots(
+    session: AsyncSession, user: User, *, account: str, since: datetime
+) -> list[AccountSnapshot]:
+    res = await session.execute(
+        select(AccountSnapshot)
+        .where(
+            AccountSnapshot.user_id == user.id,
+            AccountSnapshot.account == account,
+            AccountSnapshot.created_at >= since,
+        )
+        .order_by(AccountSnapshot.created_at.asc())
+    )
+    return list(res.scalars().all())
+
+
+async def paper_pnl_series(
+    session: AsyncSession, user: User, *, since: datetime
+) -> list[tuple[datetime, float]]:
+    """Cumulative realized paper P&L within the window, one point per closed trade."""
+    res = await session.execute(
+        select(CopiedTrade.created_at, CopiedTrade.pnl_usd)
+        .where(
+            CopiedTrade.user_id == user.id,
+            CopiedTrade.status == "paper",
+            CopiedTrade.pnl_usd.is_not(None),
+            CopiedTrade.created_at >= since,
+        )
+        .order_by(CopiedTrade.created_at.asc())
+    )
+    cumulative = 0.0
+    points: list[tuple[datetime, float]] = []
+    for created_at, pnl in res.all():
+        cumulative += float(pnl)
+        points.append((created_at, round(cumulative, 2)))
+    return points
 
 
 # ---------------------------------------------------------------------------

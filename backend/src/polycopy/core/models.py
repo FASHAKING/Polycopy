@@ -22,10 +22,19 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     # Risk knobs (per-user defaults; overridable per follow)
+    # "multiplier": copy leader_size * default_size_pct.
+    # "proportional": match the leader's % of portfolio against your own.
+    sizing_mode: Mapped[str] = mapped_column(String(16), default="multiplier")
     default_size_pct: Mapped[float] = mapped_column(Float, default=1.0)  # multiplier of leader size
     max_slippage_bps: Mapped[int] = mapped_column(BigInteger, default=200)  # 2%
     max_notional_per_trade_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
     daily_spend_cap_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
+    # Standing-risk caps (BUYs only; 0 = disabled).
+    max_open_exposure_usd: Mapped[float] = mapped_column(Float, default=0.0)  # total $ at risk
+    max_open_positions: Mapped[int] = mapped_column(BigInteger, default=0)  # concurrent positions
+    # Extreme-odds filter: skip BUYs outside [min_price, max_price]. Defaults = off.
+    min_price: Mapped[float] = mapped_column(Float, default=0.0)
+    max_price: Mapped[float] = mapped_column(Float, default=1.0)
     auto_scout_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # Per-user dry run: simulate copies without placing real orders.
@@ -100,6 +109,7 @@ class Follow(Base):
 
     size_pct_override: Mapped[float | None] = mapped_column(Float, nullable=True)
     max_slippage_bps_override: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    sizing_mode_override: Mapped[str | None] = mapped_column(String(16), nullable=True)
     source: Mapped[str] = mapped_column(String(16), default="manual")  # manual | auto
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
@@ -167,3 +177,16 @@ class WatcherCursor(Base):
     trader_id: Mapped[int] = mapped_column(ForeignKey("traders.id"), primary_key=True)
     last_trade_ts: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_trade_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+
+class AccountSnapshot(Base):
+    """Periodic point-in-time value of a user's account, for the P&L chart."""
+
+    __tablename__ = "account_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    account: Mapped[str] = mapped_column(String(8))  # paper | real
+    portfolio_value: Mapped[float] = mapped_column(Float, default=0.0)
+    pnl: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
