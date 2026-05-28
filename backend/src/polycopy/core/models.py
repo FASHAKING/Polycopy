@@ -29,6 +29,12 @@ class User(Base):
     max_slippage_bps: Mapped[int] = mapped_column(BigInteger, default=200)  # 2%
     max_notional_per_trade_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
     daily_spend_cap_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
+    # Standing-risk caps (BUYs only; 0 = disabled).
+    max_open_exposure_usd: Mapped[float] = mapped_column(Float, default=0.0)  # total $ at risk
+    max_open_positions: Mapped[int] = mapped_column(BigInteger, default=0)  # concurrent positions
+    # Extreme-odds filter: skip BUYs outside [min_price, max_price]. Defaults = off.
+    min_price: Mapped[float] = mapped_column(Float, default=0.0)
+    max_price: Mapped[float] = mapped_column(Float, default=1.0)
     auto_scout_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # Per-user dry run: simulate copies without placing real orders.

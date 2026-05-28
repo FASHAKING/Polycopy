@@ -71,6 +71,10 @@ class SettingsIn(BaseModel):
     max_slippage_bps: int | None = None
     max_notional_per_trade_usd: float | None = None
     daily_spend_cap_usd: float | None = None
+    max_open_exposure_usd: float | None = None
+    max_open_positions: int | None = None
+    min_price: float | None = None
+    max_price: float | None = None
 
 
 class PaperPositionOut(BaseModel):

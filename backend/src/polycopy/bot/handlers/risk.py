@@ -20,6 +20,10 @@ _FIELDS = {
     "slippage": ("max_slippage_bps", int, "max slippage in bps (200 = 2%)"),
     "maxtrade": ("max_notional_per_trade_usd", float, "max $ per copied trade (0 = off)"),
     "daycap": ("daily_spend_cap_usd", float, "max $ copied per day (0 = off)"),
+    "maxexposure": ("max_open_exposure_usd", float, "max total $ in open positions (0 = off)"),
+    "maxpos": ("max_open_positions", int, "max concurrent positions (0 = off)"),
+    "minprice": ("min_price", float, "skip buys below this price (0 = off)"),
+    "maxprice": ("max_price", float, "skip buys above this price (1 = off)"),
 }
 
 
@@ -37,8 +41,14 @@ def _summary(user) -> str:
         f"• `maxtrade` — ${user.max_notional_per_trade_usd:g} per trade"
         f"{' (off)' if user.max_notional_per_trade_usd == 0 else ''}\n"
         f"• `daycap` — ${user.daily_spend_cap_usd:g} per day"
-        f"{' (off)' if user.daily_spend_cap_usd == 0 else ''}\n\n"
-        "Set with: `/risk <name> <value>`  e.g. `/risk mode proportional`"
+        f"{' (off)' if user.daily_spend_cap_usd == 0 else ''}\n"
+        f"• `maxexposure` — ${user.max_open_exposure_usd:g} open"
+        f"{' (off)' if user.max_open_exposure_usd == 0 else ''}\n"
+        f"• `maxpos` — {user.max_open_positions} positions"
+        f"{' (off)' if user.max_open_positions == 0 else ''}\n"
+        f"• `minprice` — {user.min_price:g}{' (off)' if user.min_price == 0 else ''}\n"
+        f"• `maxprice` — {user.max_price:g}{' (off)' if user.max_price == 1 else ''}\n\n"
+        "Set with: `/risk <name> <value>`  e.g. `/risk maxexposure 500`"
     )
 
 

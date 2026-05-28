@@ -291,7 +291,15 @@ async def execute_mirror(
     from polycopy.workers.risk import apply_risk_caps
 
     risk = await apply_risk_caps(
-        session, user, size=decision.our_size, price=decision.our_price, paper=paper
+        session,
+        user,
+        size=decision.our_size,
+        price=decision.our_price,
+        paper=paper,
+        side=trade.side,
+        token_id=trade.token_id,
+        leader_price=trade.price,
+        funder=creds.proxy_address,
     )
     if not risk.allowed:
         await repo.record_copied_trade(
