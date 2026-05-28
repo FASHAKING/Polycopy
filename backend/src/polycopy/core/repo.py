@@ -412,6 +412,66 @@ async def apply_paper_fill(
     return PaperFill(True, realized_pnl=round(realized, 2))
 
 
+# A synthetic trader for manually-closed paper trades (no real leader). Hidden
+# from leaderboards (it never gets a win_rate) but lets a close be recorded as a
+# normal paper CopiedTrade so it flows into realized stats and the P&L chart.
+_PAPER_CLOSE_WALLET = "paper-manual-close"
+
+
+async def close_paper_position(
+    session: AsyncSession,
+    user: User,
+    *,
+    token_id: str,
+    price: float | None = None,
+    shares: float | None = None,
+) -> PaperFill:
+    """Manually sell a paper position at `price`, realizing P&L into cash.
+
+    Records the close as a paper SELL CopiedTrade so it counts toward realized
+    stats and the P&L chart, exactly like a leader-driven paper sell. With
+    `shares=None` it closes the whole position; `price=None` falls back to cost
+    basis when a live price isn't available.
+    """
+    pos = await _get_paper_position(session, user, token_id)
+    if pos is None or pos.shares <= _PAPER_SHARES_EPS:
+        return PaperFill(False, reason="no paper position to close")
+    sell = pos.shares if shares is None else min(shares, pos.shares)
+    if sell <= _PAPER_SHARES_EPS:
+        return PaperFill(False, reason="nothing to close")
+
+    close_price = pos.avg_price if price is None else price
+    proceeds = sell * close_price
+    realized = round(sell * (close_price - pos.avg_price), 2)
+    user.paper_balance += proceeds
+    pos.shares -= sell
+    pos.updated_at = datetime.utcnow()
+
+    trader = await get_or_create_trader(
+        session, _PAPER_CLOSE_WALLET, display_name="Manual close"
+    )
+    await record_copied_trade(
+        session,
+        user_id=user.id,
+        trader_id=trader.id,
+        market_id=pos.condition_id,
+        market_question=pos.market_question,
+        market_slug=pos.market_slug,
+        outcome=pos.outcome,
+        side="SELL",
+        leader_price=close_price,
+        leader_size=sell,
+        our_price=close_price,
+        our_size=sell,
+        status="paper",
+        pnl_usd=realized,
+    )
+    if pos.shares <= _PAPER_SHARES_EPS:
+        await session.delete(pos)
+    await session.flush()
+    return PaperFill(True, realized_pnl=realized)
+
+
 async def paper_realized_stats(
     session: AsyncSession, user: User
 ) -> tuple[float, float | None, int]:

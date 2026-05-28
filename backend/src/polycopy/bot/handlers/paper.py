@@ -51,6 +51,44 @@ async def cmd_paper(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                     f"💰 Paper account funded with *${amount:,.2f}*. "
                     "Open positions were reset. Paper trading is *ON* — use /paper to view it."
                 )
+        elif arg == "close":
+            positions = await repo.get_paper_positions(session, user)
+            if len(ctx.args) < 2:
+                msg = "Usage: `/paper close <n>` (number from /paper) or `/paper close all`."
+            elif not positions:
+                msg = "No open paper positions to close."
+            elif ctx.args[1].lower() == "all":
+                total = 0.0
+                closed = 0
+                for pos in list(positions):
+                    fill = await portfolio_svc.close_paper(session, user, token_id=pos.token_id)
+                    if fill.allowed:
+                        total += fill.realized_pnl or 0.0
+                        closed += 1
+                sign = "+" if total >= 0 else ""
+                msg = (
+                    f"✅ Closed *{closed}* paper position(s). "
+                    f"Realized P&L: {sign}${total:,.2f}."
+                )
+            else:
+                try:
+                    idx = int(ctx.args[1]) - 1
+                except ValueError:
+                    idx = -1
+                if idx < 0 or idx >= len(positions):
+                    msg = "Invalid position number — use /paper to see the list."
+                else:
+                    pos = positions[idx]
+                    fill = await portfolio_svc.close_paper(session, user, token_id=pos.token_id)
+                    if not fill.allowed:
+                        msg = f"Couldn't close: {fill.reason}."
+                    else:
+                        sign = "+" if (fill.realized_pnl or 0) >= 0 else ""
+                        q = (pos.market_question or "position").strip()
+                        msg = (
+                            f"✅ Closed *{q}* ({pos.outcome}). "
+                            f"Realized P&L: {sign}${fill.realized_pnl:,.2f}."
+                        )
         else:
             p = await portfolio_svc.paper_portfolio(session, user)
             state = "ON" if (user.paper_trading or global_paper) else "OFF"
@@ -81,11 +119,12 @@ def _format_paper(p: portfolio_svc.PaperPortfolio, state: str, forced: str) -> s
     ]
     if p.positions:
         lines.append("")
-        for pos in p.positions[:10]:
+        for i, pos in enumerate(p.positions[:10], start=1):
             q = (pos.market_question or "market").strip()
             psign = "+" if pos.unrealized_pnl >= 0 else ""
             lines.append(
-                f"• {pos.outcome} · {pos.shares:g} @ ${pos.avg_price:.2f} "
+                f"*{i}.* {pos.outcome} · {pos.shares:g} @ ${pos.avg_price:.2f} "
                 f"→ ${pos.cur_price:.2f} ({psign}${pos.unrealized_pnl:,.2f})\n  _{q}_"
             )
+        lines.append("\n_Close one with_ `/paper close <n>` _or_ `/paper close all`.")
     return "\n".join(lines)

@@ -428,11 +428,19 @@ function PaperPanel({
 }) {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [closing, setClosing] = useState<string | null>(null);
 
   async function save(payload: Parameters<typeof api.updateSettings>[1]) {
     setBusy(true);
     await api.updateSettings(token, payload);
     setBusy(false);
+    onChange();
+  }
+
+  async function close(tokenId: string) {
+    setClosing(tokenId);
+    await api.closePaper(token, tokenId);
+    setClosing(null);
     onChange();
   }
 
@@ -501,6 +509,7 @@ function PaperPanel({
                   <th className="px-4 py-3 text-right">Now</th>
                   <th className="px-4 py-3 text-right">Value</th>
                   <th className="px-4 py-3 text-right">P&amp;L</th>
+                  <th className="px-4 py-3 text-right"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
@@ -531,6 +540,15 @@ function PaperPanel({
                     <td className="px-4 py-3 text-right">{usd(p.value)}</td>
                     <td className="px-4 py-3 text-right">
                       <Pl value={p.unrealized_pnl} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => close(p.token_id)}
+                        disabled={closing === p.token_id}
+                        className="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 transition hover:border-rose-500/60 hover:text-rose-300 disabled:opacity-50"
+                      >
+                        {closing === p.token_id ? "Closing…" : "Close"}
+                      </button>
                     </td>
                   </tr>
                 ))}

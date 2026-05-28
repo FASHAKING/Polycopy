@@ -56,6 +56,21 @@ class PaperPortfolio:
     positions: list[PaperPositionView] = field(default_factory=list)
 
 
+async def close_paper(
+    session: AsyncSession, user: User, *, token_id: str, shares: float | None = None
+):
+    """Close a paper position at the current market mid (cost basis if unavailable)."""
+    price = None
+    try:
+        async with PolymarketDataClient() as data:
+            price = await data.get_midpoint(token_id)
+    except Exception:  # noqa: BLE001 - fall back to cost basis on a data hiccup
+        price = None
+    return await repo.close_paper_position(
+        session, user, token_id=token_id, price=price, shares=shares
+    )
+
+
 async def real_portfolio(session: AsyncSession, user: User) -> RealPortfolio:
     cred = await repo.get_credential_meta(session, user)
     if cred is None:

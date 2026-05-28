@@ -63,6 +63,7 @@ export type SettingsUpdate = {
 };
 
 export type PaperPosition = {
+  token_id: string;
   market_question: string | null;
   market_slug: string | null;
   outcome: string;
@@ -159,6 +160,22 @@ export const api = {
   myPnlSeries: (token: string, account: AccountKind, range: PnlRange) =>
     get<PnlSeries>(`/api/me/pnl/series?account=${account}&range=${range}`, token),
   myPaper: (token: string) => get<PaperPortfolio>("/api/me/paper", token),
+  closePaper: async (token: string, tokenId: string, shares?: number) => {
+    try {
+      const r = await fetch(`${API_BASE}/api/me/paper/close`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ token_id: tokenId, shares }),
+      });
+      if (!r.ok) return null;
+      return (await r.json()) as PaperPortfolio;
+    } catch {
+      return null;
+    }
+  },
   updateSettings: async (token: string, payload: SettingsUpdate) => {
     try {
       const r = await fetch(`${API_BASE}/api/me/settings`, {

@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 
 from polycopy.api.deps import CurrentUser, SessionDep
 from polycopy.api.schemas import (
+    ClosePaperIn,
     CopiedTradeOut,
     FollowOut,
     MeOut,
@@ -189,6 +190,7 @@ async def my_paper(user: CurrentUser, session: SessionDep) -> PaperPortfolioOut:
         settled_markets=p.settled_markets,
         positions=[
             PaperPositionOut(
+                token_id=pos.token_id,
                 market_question=pos.market_question,
                 market_slug=pos.market_slug,
                 outcome=pos.outcome,
@@ -201,6 +203,19 @@ async def my_paper(user: CurrentUser, session: SessionDep) -> PaperPortfolioOut:
             for pos in p.positions
         ],
     )
+
+
+@router.post("/me/paper/close", response_model=PaperPortfolioOut)
+async def close_paper_position(
+    payload: ClosePaperIn, user: CurrentUser, session: SessionDep
+) -> PaperPortfolioOut:
+    fill = await portfolio_svc.close_paper(
+        session, user, token_id=payload.token_id, shares=payload.shares
+    )
+    if not fill.allowed:
+        raise HTTPException(status_code=400, detail=fill.reason or "could not close position")
+    await session.commit()
+    return await my_paper(user, session)
 
 
 _RANGE_DELTAS = {
