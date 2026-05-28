@@ -68,6 +68,49 @@ async def test_daily_cap_shrinks_to_remaining(session):
     assert out.size == 20  # $10 remaining / $0.50
 
 
+async def test_daily_cap_ignores_paper_fills_by_default(session):
+    # A paper fill today shouldn't consume the real daily budget.
+    user = await _user(session, daily_spend_cap_usd=30)
+    trader = await repo.get_or_create_trader(session, wallet="0xt")
+    await repo.record_copied_trade(
+        session,
+        user_id=user.id,
+        trader_id=trader.id,
+        market_id="m",
+        outcome="YES",
+        side="BUY",
+        leader_price=0.5,
+        leader_size=1,
+        our_price=0.5,
+        our_size=60,  # $30 of simulated spend
+        status="paper",
+    )
+    out = await apply_risk_caps(session, user, size=100, price=0.5)
+    assert out.allowed and out.size == 60  # full $30 budget still available
+
+
+async def test_daily_cap_counts_paper_fills_in_paper_mode(session):
+    # In paper mode the same simulated spend should exhaust the daily budget.
+    user = await _user(session, daily_spend_cap_usd=30)
+    trader = await repo.get_or_create_trader(session, wallet="0xt")
+    await repo.record_copied_trade(
+        session,
+        user_id=user.id,
+        trader_id=trader.id,
+        market_id="m",
+        outcome="YES",
+        side="BUY",
+        leader_price=0.5,
+        leader_size=1,
+        our_price=0.5,
+        our_size=60,  # $30 of simulated spend
+        status="paper",
+    )
+    out = await apply_risk_caps(session, user, size=100, price=0.5, paper=True)
+    assert not out.allowed
+    assert "daily" in out.reason
+
+
 async def test_capped_below_minimum_skips(session):
     user = await _user(session, max_notional_per_trade_usd=0.5)
     out = await apply_risk_caps(session, user, size=100, price=0.5)

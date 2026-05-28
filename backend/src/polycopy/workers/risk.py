@@ -36,6 +36,7 @@ async def apply_risk_caps(
     size: float,
     price: float,
     min_notional: float = MIN_NOTIONAL_USD,
+    paper: bool = False,
 ) -> RiskOutcome:
     notional = size * price
 
@@ -46,7 +47,7 @@ async def apply_risk_caps(
 
     # Daily spend cap.
     if user.daily_spend_cap_usd > 0:
-        spent = await repo.spent_today_usd(session, user)
+        spent = await repo.spent_today_usd(session, user, include_paper=paper)
         remaining = user.daily_spend_cap_usd - spent
         if remaining <= 0:
             return RiskOutcome(False, 0.0, "daily spend cap reached")

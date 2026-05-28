@@ -184,10 +184,12 @@ async def execute_mirror(
         return
 
     # Apply per-user risk caps; may shrink the order or skip it entirely.
+    from polycopy.core.config import get_settings
     from polycopy.workers.risk import apply_risk_caps
 
+    paper = get_settings().paper_trading or getattr(user, "paper_trading", False)
     risk = await apply_risk_caps(
-        session, user, size=decision.our_size, price=decision.our_price
+        session, user, size=decision.our_size, price=decision.our_price, paper=paper
     )
     if not risk.allowed:
         await repo.record_copied_trade(
@@ -203,9 +205,7 @@ async def execute_mirror(
     order.size = risk.size
 
     # Paper mode: run everything except the real order placement.
-    from polycopy.core.config import get_settings
-
-    if get_settings().paper_trading or getattr(user, "paper_trading", False):
+    if paper:
         fill = await repo.apply_paper_fill(
             session,
             user,
