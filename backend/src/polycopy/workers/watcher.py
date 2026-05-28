@@ -9,7 +9,7 @@ from datetime import datetime
 from polycopy.core import repo
 from polycopy.core.db import SessionLocal
 from polycopy.core.logging import get_logger
-from polycopy.core.models import Trader
+from polycopy.core.models import Trader, User
 from polycopy.polymarket.data_api import PolymarketDataClient, Trade
 from polycopy.workers.mirror import execute_mirror
 
@@ -82,9 +82,15 @@ async def _fan_out(trade: Trade, trader_id: int) -> None:
         trader = await session.get(Trader, trader_id)
         followers = await repo.list_followers_of_trader(session, trader)
 
-    for follow, user in followers:
+    for follow, detached_user in followers:
         # One session per follower so a single failure is isolated.
         async with SessionLocal() as session:
+            # Re-load the user into this session so mutations (e.g. paper
+            # balance debits/credits) are tracked and committed; the object
+            # from the fan-out session above is detached here.
+            user = await session.get(User, detached_user.id)
+            if user is None:
+                continue
             creds = await repo.get_credential_bundle(session, user)
             if creds is None:
                 continue
