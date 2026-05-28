@@ -8,9 +8,12 @@ import {
   Follow,
   Me,
   Pnl,
+  PaperPortfolio,
   api,
   pct,
   usd,
+  profileUrl,
+  marketUrl,
 } from "@/lib/api";
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "";
@@ -26,6 +29,7 @@ export default function Dashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [pnl, setPnl] = useState<Pnl | null>(null);
+  const [paper, setPaper] = useState<PaperPortfolio | null>(null);
   const [follows, setFollows] = useState<Follow[]>([]);
   const [trades, setTrades] = useState<CopiedTrade[]>([]);
   const [ready, setReady] = useState(false);
@@ -42,6 +46,7 @@ export default function Dashboard() {
     setFollows((await api.myFollows(tok)) || []);
     setTrades((await api.myTrades(tok)) || []);
     setPnl(await api.myPnl(tok));
+    setPaper(await api.myPaper(tok));
     setReady(true);
   }, []);
 
@@ -193,6 +198,13 @@ export default function Dashboard() {
             </section>
           )}
 
+          <PaperPanel
+            token={token!}
+            me={me}
+            paper={paper}
+            onChange={() => loadAll(token!)}
+          />
+
           <section className="mt-10">
             <h2 className="mb-3 text-sm uppercase tracking-wider text-zinc-400">
               Copying ({follows.length})
@@ -204,7 +216,14 @@ export default function Dashboard() {
                     key={f.wallet}
                     className="flex items-center justify-between rounded-md border border-zinc-800 bg-zinc-900/40 px-4 py-2 text-sm"
                   >
-                    <span>{f.display_name || `${f.wallet.slice(0, 6)}…${f.wallet.slice(-4)}`}</span>
+                    <a
+                      href={profileUrl(f.wallet)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-emerald-400 hover:underline"
+                    >
+                      {f.display_name || `${f.wallet.slice(0, 6)}…${f.wallet.slice(-4)}`}
+                    </a>
                     <span className="flex items-center gap-4">
                       <span className="text-zinc-500">{f.source}</span>
                       <span className="text-emerald-400">{pct(f.win_rate)}</span>
@@ -238,7 +257,18 @@ export default function Dashboard() {
                     {trades.map((t, i) => (
                       <tr key={i} className="hover:bg-zinc-900/30">
                         <td className="px-4 py-3 max-w-xs truncate">
-                          {t.market_question || "—"}
+                          {marketUrl(t.market_slug) ? (
+                            <a
+                              href={marketUrl(t.market_slug)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-emerald-400 hover:underline"
+                            >
+                              {t.market_question || "—"}
+                            </a>
+                          ) : (
+                            t.market_question || "—"
+                          )}
                           <span className="ml-2 text-xs text-zinc-500">{t.outcome}</span>
                         </td>
                         <td className="px-4 py-3">{t.side}</td>
@@ -275,5 +305,146 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
       <div className="text-xs uppercase tracking-wider text-zinc-500">{title}</div>
       <div className="mt-1 font-medium">{children}</div>
     </div>
+  );
+}
+
+function PaperPanel({
+  token,
+  me,
+  paper,
+  onChange,
+}: {
+  token: string;
+  me: Me;
+  paper: PaperPortfolio | null;
+  onChange: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save(payload: Parameters<typeof api.updateSettings>[1]) {
+    setBusy(true);
+    await api.updateSettings(token, payload);
+    setBusy(false);
+    onChange();
+  }
+
+  async function fund() {
+    const value = parseFloat(amount.replace(/[$,]/g, ""));
+    if (isNaN(value) || value < 0) return;
+    await save({ paper_balance: value });
+    setAmount("");
+  }
+
+  return (
+    <section className="mt-10">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm uppercase tracking-wider text-zinc-400">Paper trading</h2>
+        <button
+          onClick={() => save({ paper_trading: !me.paper_trading })}
+          disabled={busy}
+          className={`rounded-full px-3 py-1 text-xs ${
+            me.paper_trading
+              ? "border border-amber-500/40 bg-amber-500/10 text-amber-400"
+              : "border border-zinc-700 text-zinc-400"
+          } disabled:opacity-50`}
+        >
+          {me.paper_trading ? "ON — click to go live" : "OFF — click to simulate"}
+        </button>
+      </div>
+
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="number"
+            min="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Imaginary balance, e.g. 1000"
+            className="w-56 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm outline-none focus:border-zinc-500"
+          />
+          <button
+            onClick={fund}
+            disabled={busy || !amount}
+            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+          >
+            {paper?.enabled ? "Reset balance" : "Set balance"}
+          </button>
+          <span className="text-xs text-zinc-500">
+            Funds a fresh paper account and clears open paper positions.
+          </span>
+        </div>
+
+        {paper?.enabled && (
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card title="Paper value">{usd(paper.portfolio_value)}</Card>
+              <Card title="Total P&L">
+                <Pl value={paper.total_pnl} />
+                <div className="text-xs text-zinc-500">
+                  from {usd(paper.starting_balance)}
+                </div>
+              </Card>
+              <Card title="Cash">{usd(paper.cash)}</Card>
+              <Card title="Win rate">
+                {pct(paper.win_rate)}
+                <div className="text-xs text-zinc-500">
+                  {paper.settled_markets} closed
+                </div>
+              </Card>
+            </div>
+
+            {paper.positions.length > 0 && (
+              <div className="mt-4 overflow-hidden rounded-lg border border-zinc-800">
+                <table className="w-full text-sm">
+                  <thead className="bg-zinc-900/60 text-left text-xs uppercase tracking-wider text-zinc-400">
+                    <tr>
+                      <th className="px-4 py-3">Market</th>
+                      <th className="px-4 py-3 text-right">Shares</th>
+                      <th className="px-4 py-3 text-right">Avg</th>
+                      <th className="px-4 py-3 text-right">Now</th>
+                      <th className="px-4 py-3 text-right">Value</th>
+                      <th className="px-4 py-3 text-right">P&L</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800">
+                    {paper.positions.map((p, i) => (
+                      <tr key={i} className="hover:bg-zinc-900/30">
+                        <td className="px-4 py-3 max-w-xs truncate">
+                          {marketUrl(p.market_slug) ? (
+                            <a
+                              href={marketUrl(p.market_slug)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-emerald-400 hover:underline"
+                            >
+                              {p.market_question || "—"}
+                            </a>
+                          ) : (
+                            p.market_question || "—"
+                          )}
+                          <span className="ml-2 text-xs text-zinc-500">{p.outcome}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-zinc-400">{p.shares}</td>
+                        <td className="px-4 py-3 text-right text-zinc-400">
+                          {p.avg_price.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-zinc-400">
+                          {p.cur_price.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right">{usd(p.value)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <Pl value={p.unrealized_pnl} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
   );
 }

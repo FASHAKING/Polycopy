@@ -30,6 +30,14 @@ class User(Base):
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # Per-user dry run: simulate copies without placing real orders.
     paper_trading: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Imaginary money for the paper account. `paper_starting_balance` is the
+    # baseline the user set (0 = not configured -> unlimited, no accounting);
+    # `paper_balance` is the running simulated cash.
+    paper_starting_balance: Mapped[float] = mapped_column(Float, default=0.0)
+    paper_balance: Mapped[float] = mapped_column(Float, default=0.0)
+    # When the paper account was last funded/reset; realized stats count only
+    # closed trades after this so a reset starts the scoreboard fresh.
+    paper_funded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     credentials: Mapped["PolymarketCredential | None"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
@@ -111,6 +119,7 @@ class CopiedTrade(Base):
 
     market_id: Mapped[str] = mapped_column(String(128), index=True)
     market_question: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    market_slug: Mapped[str | None] = mapped_column(String(256), nullable=True)
     outcome: Mapped[str] = mapped_column(String(32))  # YES / NO
     side: Mapped[str] = mapped_column(String(8))  # BUY / SELL
 
@@ -130,6 +139,24 @@ class CopiedTrade(Base):
 
     user: Mapped[User] = relationship(back_populates="copied_trades")
     trader: Mapped[Trader] = relationship()
+
+
+class PaperPosition(Base):
+    """A simulated open position held in a user's paper-trading account."""
+
+    __tablename__ = "paper_positions"
+    __table_args__ = (UniqueConstraint("user_id", "token_id", name="uq_paper_user_token"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    token_id: Mapped[str] = mapped_column(String(128), index=True)
+    condition_id: Mapped[str] = mapped_column(String(128))
+    market_question: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    market_slug: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(32))
+    shares: Mapped[float] = mapped_column(Float, default=0.0)
+    avg_price: Mapped[float] = mapped_column(Float, default=0.0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
 class WatcherCursor(Base):

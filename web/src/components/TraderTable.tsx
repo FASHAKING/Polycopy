@@ -1,4 +1,4 @@
-import { Trader, pct, usd } from "@/lib/api";
+import { Trader, pct, usd, profileUrl } from "@/lib/api";
 
 function short(wallet: string) {
   return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
@@ -28,7 +28,14 @@ export default function TraderTable({ traders }: { traders: Trader[] }) {
           {traders.map((t) => (
             <tr key={t.wallet} className="hover:bg-zinc-900/30">
               <td className="px-4 py-3">
-                <span className="font-medium">{t.display_name || short(t.wallet)}</span>
+                <a
+                  href={profileUrl(t.wallet)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium hover:text-emerald-400 hover:underline"
+                >
+                  {t.display_name || short(t.wallet)}
+                </a>
                 {t.display_name && (
                   <span className="ml-2 font-mono text-xs text-zinc-500">{short(t.wallet)}</span>
                 )}

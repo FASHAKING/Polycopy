@@ -31,6 +31,7 @@ class Trade(BaseModel):
     timestamp: int
     title: str | None = None
     slug: str | None = None
+    event_slug: str | None = Field(default=None, alias="eventSlug")
     outcome: str | None = None
     outcome_index: int | None = Field(default=None, alias="outcomeIndex")
     name: str | None = None
@@ -108,6 +109,7 @@ class PolymarketDataClient:
         self._data = s.polymarket_data_api.rstrip("/")
         self._gamma = s.polymarket_gamma_api.rstrip("/")
         self._lb = s.polymarket_lb_api.rstrip("/")
+        self._clob = s.polymarket_clob_api.rstrip("/")
         self._client = client or httpx.AsyncClient(
             timeout=15.0, headers={"User-Agent": "polycopy/0.1"}
         )
@@ -183,6 +185,24 @@ class PolymarketDataClient:
                 break
             offset += page_size
         return out[:max_events]
+
+    async def get_midpoint(self, token_id: str) -> float | None:
+        """Current mid price (0..1) for an outcome token via the public CLOB API."""
+        data = await self._get(f"{self._clob}/midpoint", {"token_id": token_id})
+        if isinstance(data, dict) and data.get("mid") is not None:
+            try:
+                return float(data["mid"])
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    async def get_prices(self, token_ids: list[str]) -> dict[str, float]:
+        """Fetch mid prices for several tokens concurrently; skips any that fail."""
+        import asyncio
+
+        unique = list(dict.fromkeys(token_ids))
+        results = await asyncio.gather(*(self.get_midpoint(t) for t in unique))
+        return {t: p for t, p in zip(unique, results, strict=True) if p is not None}
 
     async def get_portfolio_value(self, wallet: str) -> float:
         data = await self._get(f"{self._data}/value", {"user": wallet})

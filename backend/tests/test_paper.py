@@ -66,6 +66,58 @@ async def test_paper_mode_records_paper_and_skips_placement(session, monkeypatch
     assert sent and "Paper trade" in sent[0]
 
 
+async def test_paper_balance_accounting_buy_then_sell(session):
+    from polycopy.core import repo
+
+    user = await repo.get_or_create_user(session, telegram_id=10)
+    await repo.set_paper_balance(session, user, 100.0)
+    assert user.paper_balance == 100.0
+
+    buy = await repo.apply_paper_fill(
+        session, user, token_id="t1", condition_id="0xc", market_question="Q",
+        market_slug="q", outcome="Yes", side="BUY", size=100, price=0.50,
+    )
+    assert buy.allowed
+    assert user.paper_balance == 50.0
+    positions = await repo.get_paper_positions(session, user)
+    assert len(positions) == 1 and positions[0].shares == 100 and positions[0].avg_price == 0.50
+
+    sell = await repo.apply_paper_fill(
+        session, user, token_id="t1", condition_id="0xc", market_question="Q",
+        market_slug="q", outcome="Yes", side="SELL", size=100, price=0.60,
+    )
+    assert sell.allowed
+    assert sell.realized_pnl == 10.0  # 100 * (0.60 - 0.50)
+    assert user.paper_balance == 110.0
+    assert await repo.get_paper_positions(session, user) == []
+
+
+async def test_paper_balance_insufficient_is_rejected(session):
+    from polycopy.core import repo
+
+    user = await repo.get_or_create_user(session, telegram_id=11)
+    await repo.set_paper_balance(session, user, 10.0)
+    fill = await repo.apply_paper_fill(
+        session, user, token_id="t1", condition_id="0xc", market_question=None,
+        market_slug=None, outcome="Yes", side="BUY", size=100, price=0.50,
+    )
+    assert not fill.allowed
+    assert "insufficient paper balance" in fill.reason
+    assert user.paper_balance == 10.0  # untouched
+
+
+async def test_paper_fill_noop_without_balance(session):
+    from polycopy.core import repo
+
+    user = await repo.get_or_create_user(session, telegram_id=12)  # no balance set
+    fill = await repo.apply_paper_fill(
+        session, user, token_id="t1", condition_id="0xc", market_question=None,
+        market_slug=None, outcome="Yes", side="BUY", size=100, price=0.50,
+    )
+    assert fill.allowed
+    assert await repo.get_paper_positions(session, user) == []
+
+
 async def test_global_paper_forces_simulation(session, monkeypatch):
     from polycopy.core import config, repo
 
