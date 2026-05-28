@@ -46,7 +46,19 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const stored = localStorage.getItem(TOKEN_KEY);
+    let stored = localStorage.getItem(TOKEN_KEY);
+    // Magic-link login: the bot's /login sends a link with #token=… in the
+    // fragment. Adopt it, persist it, then strip it from the URL.
+    if (window.location.hash.startsWith("#token=")) {
+      const fromHash = decodeURIComponent(
+        window.location.hash.slice("#token=".length)
+      );
+      if (fromHash) {
+        localStorage.setItem(TOKEN_KEY, fromHash);
+        stored = fromHash;
+        history.replaceState(null, "", window.location.pathname);
+      }
+    }
     if (stored) {
       setToken(stored);
       loadAll(stored);
@@ -109,15 +121,20 @@ export default function Dashboard() {
         <section className="mt-16 text-center">
           <h2 className="text-xl font-medium">Sign in to see your copy-trading</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-zinc-400">
-            Log in with the same Telegram account you use with the bot to view your
-            followed traders, copied trades, and P&amp;L.
+            Open the bot in Telegram and send{" "}
+            <code className="rounded bg-zinc-800 px-1.5 py-0.5 text-zinc-200">
+              /login
+            </code>
+            . It replies with a private link that signs you in here — no browser
+            extensions or pop-ups required.
           </p>
-          <div id="tg-login" className="mt-6 flex justify-center" />
-          {!BOT_USERNAME && (
-            <p className="mt-4 text-xs text-amber-400">
-              Set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME to enable Telegram login.
+          {BOT_USERNAME && (
+            <p className="mx-auto mt-6 max-w-md text-xs text-zinc-500">
+              Prefer the Telegram button? It also works in browsers without
+              strict privacy blockers:
             </p>
           )}
+          <div id="tg-login" className="mt-3 flex justify-center" />
         </section>
       )}
 

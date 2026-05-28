@@ -13,6 +13,7 @@ from polycopy.bot.handlers.link import (
     cmd_status,
     cmd_unlink,
 )
+from polycopy.bot.handlers.login import cmd_login
 from polycopy.bot.handlers.notify import cmd_notify
 from polycopy.bot.handlers.paper import cmd_paper
 from polycopy.bot.handlers.risk import cmd_risk
@@ -38,6 +39,7 @@ def build_application() -> Application:
     app = Application.builder().token(settings.telegram_bot_token).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("login", cmd_login))
     app.add_handler(build_link_conversation())
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("unlink", cmd_unlink))

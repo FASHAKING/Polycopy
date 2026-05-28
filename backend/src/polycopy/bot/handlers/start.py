@@ -29,6 +29,8 @@ HELP_TEXT = (
     "  /notify on|off — trade alerts when a trader you follow trades\n\n"
     "*Testing*\n"
     "  /paper on|off — simulate copies without placing real orders\n\n"
+    "*Dashboard*\n"
+    "  /login — get a private link to sign in to the web dashboard\n\n"
     "Non-custodial: your funds stay in your own Polymarket account."
 )
 
