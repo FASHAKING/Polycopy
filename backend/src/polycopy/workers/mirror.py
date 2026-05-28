@@ -13,7 +13,7 @@ from polycopy.core import repo
 from polycopy.core.logging import get_logger
 from polycopy.core.models import Follow, Trader, User
 from polycopy.polymarket.clob import ClobClient, CredBundle, OrderRequest, clamp_price
-from polycopy.polymarket.data_api import Trade
+from polycopy.polymarket.data_api import PolymarketDataClient, Trade
 from polycopy.polymarket.urls import market_url, profile_url
 
 log = get_logger(__name__)
@@ -37,19 +37,24 @@ def decide_mirror(
     size_pct: float,
     max_slippage_bps: int,
     min_notional_usd: float = MIN_NOTIONAL_USD,
+    our_size: float | None = None,
 ) -> MirrorDecision:
     """Scale a leader trade to a follower order.
 
-    `size_pct` is a multiplier on the leader's share count (1.0 = mirror 1:1).
-    Returns a skip decision (with a reason) when the trade can't/shouldn't be
-    copied, otherwise an OrderRequest with a slippage-padded limit price.
+    By default `size_pct` multiplies the leader's share count (1.0 = mirror 1:1).
+    Pass `our_size` to use a precomputed share count instead (e.g. proportional
+    sizing). Returns a skip decision (with a reason) when the trade can't/shouldn't
+    be copied, otherwise an OrderRequest with a slippage-padded limit price.
     """
-    if size_pct <= 0:
-        return MirrorDecision(False, skip_reason="size_pct is zero")
     if not 0 < trade.price < 1:
         return MirrorDecision(False, skip_reason=f"leader price out of range ({trade.price})")
 
-    our_size = round(trade.size * size_pct, 2)
+    if our_size is None:
+        if size_pct <= 0:
+            return MirrorDecision(False, skip_reason="size_pct is zero")
+        our_size = trade.size * size_pct
+
+    our_size = round(our_size, 2)
     notional = our_size * trade.price
     if our_size <= 0 or notional < min_notional_usd:
         return MirrorDecision(
@@ -133,7 +138,7 @@ async def _maybe_notify_copy(
     await notify_user(user.telegram_id, text)
 
 
-def _effective(follow: Follow, user: User) -> tuple[float, int]:
+def _effective(follow: Follow, user: User) -> tuple[float, int, str]:
     size_pct = (
         follow.size_pct_override
         if follow.size_pct_override is not None
@@ -144,7 +149,93 @@ def _effective(follow: Follow, user: User) -> tuple[float, int]:
         if follow.max_slippage_bps_override is not None
         else user.max_slippage_bps
     )
-    return size_pct, slippage
+    sizing_mode = follow.sizing_mode_override or user.sizing_mode
+    return size_pct, slippage, sizing_mode
+
+
+async def _follower_portfolio_value(
+    session: AsyncSession,
+    data: PolymarketDataClient,
+    user: User,
+    *,
+    paper: bool,
+    funder: str,
+) -> float:
+    """Current total value of the follower's account (basis for proportional sizing)."""
+    if paper:
+        positions = await repo.get_paper_positions(session, user)
+        value = user.paper_balance
+        if positions:
+            prices = await data.get_prices([p.token_id for p in positions])
+            value += sum(p.shares * prices.get(p.token_id, p.avg_price) for p in positions)
+        return value
+    return await data.get_portfolio_value(funder)
+
+
+async def _follower_held_shares(
+    session: AsyncSession,
+    data: PolymarketDataClient,
+    user: User,
+    token_id: str,
+    *,
+    paper: bool,
+    funder: str,
+) -> float:
+    if paper:
+        positions = await repo.get_paper_positions(session, user)
+        return next((p.shares for p in positions if p.token_id == token_id), 0.0)
+    positions = await data.get_positions(funder)
+    return next((p.size for p in positions if p.token_id == token_id), 0.0)
+
+
+async def _proportional_size(
+    session: AsyncSession,
+    *,
+    user: User,
+    trader: Trader,
+    trade: Trade,
+    paper: bool,
+    funder: str,
+) -> float | None:
+    """Share count that mirrors the leader's portfolio allocation onto the follower.
+
+    BUY: our_shares = leader_size * (our_portfolio / leader_portfolio) — i.e. the
+    same fraction of our book the leader put into theirs (price cancels out).
+    SELL: close the same fraction of our held position the leader closed of theirs.
+    Returns None to fall back to multiplier sizing when a needed value is missing.
+    """
+    try:
+        async with PolymarketDataClient() as data:
+            follower_pv = await _follower_portfolio_value(
+                session, data, user, paper=paper, funder=funder
+            )
+            if follower_pv <= 0:
+                return None
+
+            if trade.side.upper() == "BUY":
+                leader_pv = await data.get_portfolio_value(trader.wallet)
+                if leader_pv <= 0:
+                    return None
+                return trade.size * (follower_pv / leader_pv)
+
+            # SELL: leader's position pre-sale ~= what remains now + what they sold.
+            positions = await data.get_positions(trader.wallet)
+            leader_remaining = next(
+                (p.size for p in positions if p.token_id == trade.token_id), 0.0
+            )
+            leader_before = leader_remaining + trade.size
+            if leader_before <= 0:
+                return None
+            fraction_closed = min(trade.size / leader_before, 1.0)
+            held = await _follower_held_shares(
+                session, data, user, trade.token_id, paper=paper, funder=funder
+            )
+            if held <= 0:
+                return None
+            return fraction_closed * held
+    except Exception as exc:  # noqa: BLE001 - fall back to multiplier on any data hiccup
+        log.warning("mirror.proportional_failed", user=user.id, error=str(exc))
+        return None
 
 
 async def execute_mirror(
@@ -157,8 +248,21 @@ async def execute_mirror(
     creds: CredBundle,
 ) -> None:
     """Decide, place (if applicable), and persist a mirrored trade for one follower."""
-    size_pct, slippage = _effective(follow, user)
-    decision = decide_mirror(trade, size_pct=size_pct, max_slippage_bps=slippage)
+    from polycopy.core.config import get_settings
+
+    paper = get_settings().paper_trading or getattr(user, "paper_trading", False)
+    size_pct, slippage, sizing_mode = _effective(follow, user)
+
+    our_size = None
+    if sizing_mode == "proportional":
+        # None falls back to the size_pct multiplier inside decide_mirror.
+        our_size = await _proportional_size(
+            session, user=user, trader=trader, trade=trade, paper=paper,
+            funder=creds.proxy_address,
+        )
+    decision = decide_mirror(
+        trade, size_pct=size_pct, max_slippage_bps=slippage, our_size=our_size
+    )
 
     common = dict(
         user_id=user.id,
@@ -184,10 +288,8 @@ async def execute_mirror(
         return
 
     # Apply per-user risk caps; may shrink the order or skip it entirely.
-    from polycopy.core.config import get_settings
     from polycopy.workers.risk import apply_risk_caps
 
-    paper = get_settings().paper_trading or getattr(user, "paper_trading", False)
     risk = await apply_risk_caps(
         session, user, size=decision.our_size, price=decision.our_price, paper=paper
     )

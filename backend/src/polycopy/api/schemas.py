@@ -66,6 +66,7 @@ class SettingsIn(BaseModel):
     paper_balance: float | None = None  # funds/resets the paper account
     auto_scout_enabled: bool | None = None
     notifications_enabled: bool | None = None
+    sizing_mode: str | None = None
     default_size_pct: float | None = None
     max_slippage_bps: int | None = None
     max_notional_per_trade_usd: float | None = None

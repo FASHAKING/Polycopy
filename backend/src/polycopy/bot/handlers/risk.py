@@ -4,7 +4,18 @@ from telegram.ext import ContextTypes
 from polycopy.bot.session import db_session
 from polycopy.core import repo
 
+_SIZING_MODES = ("multiplier", "proportional")
+
+
+def _sizing_mode(raw: str) -> str:
+    value = raw.strip().lower()
+    if value not in _SIZING_MODES:
+        raise ValueError(value)
+    return value
+
+
 _FIELDS = {
+    "mode": ("sizing_mode", _sizing_mode, "sizing: multiplier or proportional"),
     "size": ("default_size_pct", float, "copy size multiplier (1.0 = mirror 1:1)"),
     "slippage": ("max_slippage_bps", int, "max slippage in bps (200 = 2%)"),
     "maxtrade": ("max_notional_per_trade_usd", float, "max $ per copied trade (0 = off)"),
@@ -13,15 +24,21 @@ _FIELDS = {
 
 
 def _summary(user) -> str:
+    mode_desc = (
+        "match leader % of portfolio"
+        if user.sizing_mode == "proportional"
+        else "fixed multiplier"
+    )
     return (
         "*Your risk settings*\n"
+        f"• `mode` — {user.sizing_mode} ({mode_desc})\n"
         f"• `size` — {user.default_size_pct} (copy multiplier)\n"
         f"• `slippage` — {user.max_slippage_bps} bps\n"
         f"• `maxtrade` — ${user.max_notional_per_trade_usd:g} per trade"
         f"{' (off)' if user.max_notional_per_trade_usd == 0 else ''}\n"
         f"• `daycap` — ${user.daily_spend_cap_usd:g} per day"
         f"{' (off)' if user.daily_spend_cap_usd == 0 else ''}\n\n"
-        "Set with: `/risk <name> <value>`  e.g. `/risk maxtrade 25`"
+        "Set with: `/risk <name> <value>`  e.g. `/risk mode proportional`"
     )
 
 
@@ -55,9 +72,10 @@ async def cmd_risk(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         try:
             value = caster(raw)
         except ValueError:
-            await update.message.reply_text(f"“{raw}” isn't a valid value for {name}.")
+            hint = f" Options: {', '.join(_SIZING_MODES)}." if name == "mode" else ""
+            await update.message.reply_text(f"“{raw}” isn't a valid value for {name}.{hint}")
             return
-        if value < 0:
+        if isinstance(value, (int, float)) and value < 0:
             await update.message.reply_text("Value can't be negative.")
             return
 

@@ -101,6 +101,10 @@ async def update_settings(
         if amount < 0:
             raise HTTPException(status_code=422, detail="paper_balance can't be negative")
         await repo.set_paper_balance(session, user, amount)
+    if data.get("sizing_mode") not in (None, "multiplier", "proportional"):
+        raise HTTPException(
+            status_code=422, detail="sizing_mode must be 'multiplier' or 'proportional'"
+        )
     for attr, value in data.items():
         if isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0:
             raise HTTPException(status_code=422, detail=f"{attr} can't be negative")

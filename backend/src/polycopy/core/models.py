@@ -22,6 +22,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     # Risk knobs (per-user defaults; overridable per follow)
+    # "multiplier": copy leader_size * default_size_pct.
+    # "proportional": match the leader's % of portfolio against your own.
+    sizing_mode: Mapped[str] = mapped_column(String(16), default="multiplier")
     default_size_pct: Mapped[float] = mapped_column(Float, default=1.0)  # multiplier of leader size
     max_slippage_bps: Mapped[int] = mapped_column(BigInteger, default=200)  # 2%
     max_notional_per_trade_usd: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = disabled
@@ -100,6 +103,7 @@ class Follow(Base):
 
     size_pct_override: Mapped[float | None] = mapped_column(Float, nullable=True)
     max_slippage_bps_override: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    sizing_mode_override: Mapped[str | None] = mapped_column(String(16), nullable=True)
     source: Mapped[str] = mapped_column(String(16), default="manual")  # manual | auto
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
