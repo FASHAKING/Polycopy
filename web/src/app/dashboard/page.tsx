@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import PnlChart from "@/components/PnlChart";
+import RiskPanel from "@/components/RiskPanel";
 import {
   AccountKind,
   CopiedTrade,
@@ -263,6 +264,8 @@ export default function Dashboard() {
               </Card>
             </section>
           )}
+
+          <RiskPanel token={token!} me={me} onChange={() => loadAll(token!)} />
 
           <section className="mt-10">
             <h2 className="mb-3 text-sm uppercase tracking-wider text-zinc-400">

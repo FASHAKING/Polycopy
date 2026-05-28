@@ -21,17 +21,29 @@ export type Trader = {
   last_scored_at: string | null;
 };
 
+export type SizingMode = "multiplier" | "proportional";
+
 export type Me = {
   telegram_id: number;
   telegram_username: string | null;
   email: string | null;
   auto_scout_enabled: boolean;
+  notifications_enabled: boolean;
   paper_trading: boolean;
   paper_starting_balance: number;
   paper_balance: number;
   linked: boolean;
   wallet_origin: string | null;
   wallet_address: string | null;
+  sizing_mode: SizingMode;
+  default_size_pct: number;
+  max_slippage_bps: number;
+  max_notional_per_trade_usd: number;
+  daily_spend_cap_usd: number;
+  max_open_exposure_usd: number;
+  max_open_positions: number;
+  min_price: number;
+  max_price: number;
 };
 
 export type SettingsUpdate = {
@@ -39,10 +51,15 @@ export type SettingsUpdate = {
   paper_balance?: number;
   auto_scout_enabled?: boolean;
   notifications_enabled?: boolean;
+  sizing_mode?: SizingMode;
   default_size_pct?: number;
   max_slippage_bps?: number;
   max_notional_per_trade_usd?: number;
   daily_spend_cap_usd?: number;
+  max_open_exposure_usd?: number;
+  max_open_positions?: number;
+  min_price?: number;
+  max_price?: number;
 };
 
 export type PaperPosition = {

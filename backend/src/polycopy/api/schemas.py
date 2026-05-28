@@ -51,12 +51,23 @@ class MeOut(BaseModel):
     telegram_username: str | None
     email: str | None
     auto_scout_enabled: bool
+    notifications_enabled: bool
     paper_trading: bool
     paper_starting_balance: float
     paper_balance: float
     linked: bool
     wallet_origin: str | None
     wallet_address: str | None
+    # Risk controls
+    sizing_mode: str
+    default_size_pct: float
+    max_slippage_bps: int
+    max_notional_per_trade_usd: float
+    daily_spend_cap_usd: float
+    max_open_exposure_usd: float
+    max_open_positions: int
+    min_price: float
+    max_price: float
 
 
 class SettingsIn(BaseModel):

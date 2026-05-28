@@ -85,12 +85,22 @@ async def get_me(user: CurrentUser, session: SessionDep) -> MeOut:
         telegram_username=user.telegram_username,
         email=user.email,
         auto_scout_enabled=user.auto_scout_enabled,
+        notifications_enabled=user.notifications_enabled,
         paper_trading=user.paper_trading,
         paper_starting_balance=user.paper_starting_balance,
         paper_balance=user.paper_balance,
         linked=cred is not None,
         wallet_origin=cred.origin if cred else None,
         wallet_address=cred.proxy_address if cred else None,
+        sizing_mode=user.sizing_mode,
+        default_size_pct=user.default_size_pct,
+        max_slippage_bps=user.max_slippage_bps,
+        max_notional_per_trade_usd=user.max_notional_per_trade_usd,
+        daily_spend_cap_usd=user.daily_spend_cap_usd,
+        max_open_exposure_usd=user.max_open_exposure_usd,
+        max_open_positions=user.max_open_positions,
+        min_price=user.min_price,
+        max_price=user.max_price,
     )
 
 
