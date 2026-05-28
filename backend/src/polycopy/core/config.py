@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     polygon_chain_id: int = 137
 
     web_public_api_url: str = "http://localhost:8000"
+    # Public base URL of the web dashboard, used to build /login magic links.
+    dashboard_url: str = "http://localhost:3000"
     # Comma-separated allowed origins for the API. "*" is fine for local dev;
     # set explicit origins in production.
     cors_origins: str = "*"
