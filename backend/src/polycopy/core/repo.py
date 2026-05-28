@@ -4,13 +4,14 @@ API, and workers never hand-roll queries or touch encryption directly.
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from polycopy.core import crypto
 from polycopy.core.models import (
     CopiedTrade,
     Follow,
+    PaperPosition,
     PolymarketCredential,
     Trader,
     User,
@@ -279,6 +280,148 @@ async def list_copied_trades(
         .limit(limit)
     )
     return list(res.scalars().all())
+
+
+# ---------------------------------------------------------------------------
+# Paper trading (imaginary balance + simulated positions)
+# ---------------------------------------------------------------------------
+
+# A tiny share balance below which we treat a position as fully closed.
+_PAPER_SHARES_EPS = 1e-6
+
+
+class PaperFill:
+    """Outcome of trying to apply a leader trade to a user's paper account."""
+
+    def __init__(
+        self, allowed: bool, *, reason: str | None = None, realized_pnl: float | None = None
+    ) -> None:
+        self.allowed = allowed
+        self.reason = reason
+        self.realized_pnl = realized_pnl
+
+
+async def set_paper_balance(session: AsyncSession, user: User, amount: float) -> None:
+    """Fund (or reset) the paper account: set the baseline + cash and wipe positions."""
+    user.paper_starting_balance = amount
+    user.paper_balance = amount
+    user.paper_funded_at = datetime.utcnow()
+    await session.execute(
+        delete(PaperPosition).where(PaperPosition.user_id == user.id)
+    )
+    await session.flush()
+
+
+async def get_paper_positions(session: AsyncSession, user: User) -> list[PaperPosition]:
+    res = await session.execute(
+        select(PaperPosition)
+        .where(PaperPosition.user_id == user.id, PaperPosition.shares > _PAPER_SHARES_EPS)
+        .order_by(PaperPosition.updated_at.desc())
+    )
+    return list(res.scalars().all())
+
+
+async def _get_paper_position(
+    session: AsyncSession, user: User, token_id: str
+) -> PaperPosition | None:
+    res = await session.execute(
+        select(PaperPosition).where(
+            PaperPosition.user_id == user.id, PaperPosition.token_id == token_id
+        )
+    )
+    return res.scalar_one_or_none()
+
+
+async def apply_paper_fill(
+    session: AsyncSession,
+    user: User,
+    *,
+    token_id: str,
+    condition_id: str,
+    market_question: str | None,
+    market_slug: str | None,
+    outcome: str,
+    side: str,
+    size: float,
+    price: float,
+) -> PaperFill:
+    """Debit/credit the imaginary balance and update the simulated position.
+
+    No-op (always allowed) when no starting balance is configured, so paper
+    mode keeps working as a pure dry-run until a user funds an account.
+    """
+    if user.paper_starting_balance <= 0:
+        return PaperFill(True)
+
+    pos = await _get_paper_position(session, user, token_id)
+    if side.upper() == "BUY":
+        cost = size * price
+        if cost > user.paper_balance + _PAPER_SHARES_EPS:
+            return PaperFill(
+                False,
+                reason=(
+                    f"insufficient paper balance "
+                    f"(need ${cost:,.2f}, have ${user.paper_balance:,.2f})"
+                ),
+            )
+        user.paper_balance -= cost
+        if pos is None:
+            session.add(
+                PaperPosition(
+                    user_id=user.id,
+                    token_id=token_id,
+                    condition_id=condition_id,
+                    market_question=market_question,
+                    market_slug=market_slug,
+                    outcome=outcome,
+                    shares=size,
+                    avg_price=price,
+                )
+            )
+        else:
+            total = pos.shares + size
+            pos.avg_price = (pos.avg_price * pos.shares + price * size) / total
+            pos.shares = total
+            pos.updated_at = datetime.utcnow()
+        await session.flush()
+        return PaperFill(True)
+
+    # SELL: close as much of the held position as we can.
+    held = pos.shares if pos else 0.0
+    sell = min(size, held)
+    if sell <= _PAPER_SHARES_EPS:
+        return PaperFill(False, reason="no paper position to close")
+    proceeds = sell * price
+    realized = sell * (price - pos.avg_price)
+    user.paper_balance += proceeds
+    pos.shares -= sell
+    pos.updated_at = datetime.utcnow()
+    if pos.shares <= _PAPER_SHARES_EPS:
+        await session.delete(pos)
+    await session.flush()
+    return PaperFill(True, realized_pnl=round(realized, 2))
+
+
+async def paper_realized_stats(
+    session: AsyncSession, user: User
+) -> tuple[float, float | None, int]:
+    """(realized_pnl, win_rate, settled_count) over the user's closed paper trades.
+
+    Counts only trades since the account was last funded so a reset starts fresh.
+    """
+    conditions = [
+        CopiedTrade.user_id == user.id,
+        CopiedTrade.status == "paper",
+        CopiedTrade.pnl_usd.is_not(None),
+    ]
+    if user.paper_funded_at is not None:
+        conditions.append(CopiedTrade.created_at >= user.paper_funded_at)
+    res = await session.execute(select(CopiedTrade.pnl_usd).where(*conditions))
+    pnls = [float(p) for (p,) in res.all()]
+    if not pnls:
+        return 0.0, None, 0
+    wins = sum(1 for p in pnls if p > 0)
+    return round(sum(pnls), 2), wins / len(pnls), len(pnls)
 
 
 # ---------------------------------------------------------------------------

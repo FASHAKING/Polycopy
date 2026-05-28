@@ -206,11 +206,33 @@ async def execute_mirror(
     from polycopy.core.config import get_settings
 
     if get_settings().paper_trading or getattr(user, "paper_trading", False):
+        fill = await repo.apply_paper_fill(
+            session,
+            user,
+            token_id=trade.token_id,
+            condition_id=trade.condition_id,
+            market_question=trade.title,
+            market_slug=trade.event_slug or trade.slug,
+            outcome=trade.outcome or "",
+            side=trade.side,
+            size=risk.size,
+            price=decision.our_price,
+        )
+        if not fill.allowed:
+            await repo.record_copied_trade(
+                session, status="skipped", skip_reason=fill.reason, **common
+            )
+            log.info("mirror.paper_skip", user=user.id, reason=fill.reason)
+            await _maybe_notify_copy(
+                user, trader, trade, status="skipped", our_size=None, reason=fill.reason
+            )
+            return
         await repo.record_copied_trade(
             session,
             status="paper",
             our_price=decision.our_price,
             our_size=risk.size,
+            pnl_usd=fill.realized_pnl,
             **common,
         )
         log.info("mirror.paper", user=user.id, trader=trader.wallet, size=risk.size)

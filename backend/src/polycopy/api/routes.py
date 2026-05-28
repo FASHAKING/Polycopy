@@ -6,18 +6,20 @@ from polycopy.api.schemas import (
     CopiedTradeOut,
     FollowOut,
     MeOut,
+    PaperPortfolioOut,
+    PaperPositionOut,
     PnlOut,
+    SettingsIn,
     StatsOut,
     TelegramLoginIn,
     TokenOut,
     TraderOut,
 )
+from polycopy.core import portfolio as portfolio_svc
 from polycopy.core import repo
 from polycopy.core.config import get_settings
 from polycopy.core.models import CopiedTrade, Follow, Trader, User
 from polycopy.core.security import make_session_token, verify_telegram_login
-from polycopy.polymarket.data_api import PolymarketDataClient
-from polycopy.polymarket.stats import compute_realized_stats
 
 router = APIRouter(prefix="/api")
 
@@ -80,10 +82,31 @@ async def get_me(user: CurrentUser, session: SessionDep) -> MeOut:
         email=user.email,
         auto_scout_enabled=user.auto_scout_enabled,
         paper_trading=user.paper_trading,
+        paper_starting_balance=user.paper_starting_balance,
+        paper_balance=user.paper_balance,
         linked=cred is not None,
         wallet_origin=cred.origin if cred else None,
         wallet_address=cred.proxy_address if cred else None,
     )
+
+
+@router.patch("/me/settings", response_model=MeOut)
+async def update_settings(
+    payload: SettingsIn, user: CurrentUser, session: SessionDep
+) -> MeOut:
+    data = payload.model_dump(exclude_none=True)
+    # Funding the paper account resets baseline, cash, and open positions.
+    if "paper_balance" in data:
+        amount = data.pop("paper_balance")
+        if amount < 0:
+            raise HTTPException(status_code=422, detail="paper_balance can't be negative")
+        await repo.set_paper_balance(session, user, amount)
+    for attr, value in data.items():
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0:
+            raise HTTPException(status_code=422, detail=f"{attr} can't be negative")
+        setattr(user, attr, value)
+    await session.commit()
+    return await get_me(user, session)
 
 
 @router.get("/me/follows", response_model=list[FollowOut])
@@ -103,8 +126,6 @@ async def my_follows(user: CurrentUser, session: SessionDep) -> list[FollowOut]:
 
 @router.get("/me/pnl", response_model=PnlOut)
 async def my_pnl(user: CurrentUser, session: SessionDep) -> PnlOut:
-    cred = await repo.get_credential_meta(session, user)
-
     status_counts = {
         row[0]: row[1]
         for row in (
@@ -116,38 +137,51 @@ async def my_pnl(user: CurrentUser, session: SessionDep) -> PnlOut:
         ).all()
     }
 
-    portfolio_value = unrealized = realized = 0.0
-    win_rate: float | None = None
-    settled = open_positions = 0
-
-    if cred is not None:
-        address = cred.proxy_address
-        try:
-            async with PolymarketDataClient() as data:
-                positions = await data.get_positions(address)
-                portfolio_value = await data.get_portfolio_value(address)
-                activity = await data.get_activity_paged(address, max_events=2000)
-            unrealized = sum(p.cash_pnl for p in positions)
-            open_positions = len(positions)
-            rstats = compute_realized_stats(activity)
-            win_rate = rstats.win_rate
-            settled = rstats.trades_count
-            realized = (rstats.roi or 0.0) * rstats.volume_usd if rstats.roi else 0.0
-        except Exception:  # noqa: BLE001 - dashboard tolerates upstream hiccups
-            pass
+    real = await portfolio_svc.real_portfolio(session, user)
 
     return PnlOut(
-        wallet_address=cred.proxy_address if cred else None,
-        portfolio_value=round(portfolio_value, 2),
-        unrealized_pnl=round(unrealized, 2),
-        realized_pnl=round(realized, 2),
-        win_rate=win_rate,
-        settled_markets=settled,
-        open_positions=open_positions,
+        wallet_address=real.wallet_address,
+        portfolio_value=real.portfolio_value,
+        unrealized_pnl=real.unrealized_pnl,
+        realized_pnl=real.realized_pnl,
+        win_rate=real.win_rate,
+        settled_markets=real.settled_markets,
+        open_positions=real.open_positions,
         trades_filled=status_counts.get("filled", 0),
         trades_submitted=status_counts.get("submitted", 0) + status_counts.get("partial", 0),
         trades_skipped=status_counts.get("skipped", 0),
         trades_paper=status_counts.get("paper", 0),
+    )
+
+
+@router.get("/me/paper", response_model=PaperPortfolioOut)
+async def my_paper(user: CurrentUser, session: SessionDep) -> PaperPortfolioOut:
+    p = await portfolio_svc.paper_portfolio(session, user)
+    return PaperPortfolioOut(
+        enabled=p.enabled,
+        starting_balance=p.starting_balance,
+        cash=p.cash,
+        market_value=p.market_value,
+        portfolio_value=p.portfolio_value,
+        unrealized_pnl=p.unrealized_pnl,
+        realized_pnl=p.realized_pnl,
+        total_pnl=p.total_pnl,
+        open_positions=p.open_positions,
+        win_rate=p.win_rate,
+        settled_markets=p.settled_markets,
+        positions=[
+            PaperPositionOut(
+                market_question=pos.market_question,
+                market_slug=pos.market_slug,
+                outcome=pos.outcome,
+                shares=pos.shares,
+                avg_price=pos.avg_price,
+                cur_price=pos.cur_price,
+                value=pos.value,
+                unrealized_pnl=pos.unrealized_pnl,
+            )
+            for pos in p.positions
+        ],
     )
 
 

@@ -27,9 +27,48 @@ export type Me = {
   email: string | null;
   auto_scout_enabled: boolean;
   paper_trading: boolean;
+  paper_starting_balance: number;
+  paper_balance: number;
   linked: boolean;
   wallet_origin: string | null;
   wallet_address: string | null;
+};
+
+export type SettingsUpdate = {
+  paper_trading?: boolean;
+  paper_balance?: number;
+  auto_scout_enabled?: boolean;
+  notifications_enabled?: boolean;
+  default_size_pct?: number;
+  max_slippage_bps?: number;
+  max_notional_per_trade_usd?: number;
+  daily_spend_cap_usd?: number;
+};
+
+export type PaperPosition = {
+  market_question: string | null;
+  market_slug: string | null;
+  outcome: string;
+  shares: number;
+  avg_price: number;
+  cur_price: number;
+  value: number;
+  unrealized_pnl: number;
+};
+
+export type PaperPortfolio = {
+  enabled: boolean;
+  starting_balance: number;
+  cash: number;
+  market_value: number;
+  portfolio_value: number;
+  unrealized_pnl: number;
+  realized_pnl: number;
+  total_pnl: number;
+  open_positions: number;
+  win_rate: number | null;
+  settled_markets: number;
+  positions: PaperPosition[];
 };
 
 export type Follow = {
@@ -90,6 +129,23 @@ export const api = {
   myFollows: (token: string) => get<Follow[]>("/api/me/follows", token),
   myTrades: (token: string) => get<CopiedTrade[]>("/api/me/trades", token),
   myPnl: (token: string) => get<Pnl>("/api/me/pnl", token),
+  myPaper: (token: string) => get<PaperPortfolio>("/api/me/paper", token),
+  updateSettings: async (token: string, payload: SettingsUpdate) => {
+    try {
+      const r = await fetch(`${API_BASE}/api/me/settings`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) return null;
+      return (await r.json()) as Me;
+    } catch {
+      return null;
+    }
+  },
   authTelegram: async (payload: Record<string, unknown>) => {
     const r = await fetch(`${API_BASE}/api/auth/telegram`, {
       method: "POST",
