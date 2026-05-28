@@ -131,3 +131,14 @@ class PnlOut(BaseModel):
     trades_submitted: int
     trades_skipped: int
     trades_paper: int
+
+
+class PnlPointOut(BaseModel):
+    t: datetime
+    pnl: float
+
+
+class PnlSeriesOut(BaseModel):
+    account: str  # paper | real
+    range: str  # hour | day | week | month
+    points: list[PnlPointOut]

@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import PnlChart from "@/components/PnlChart";
 import {
+  AccountKind,
   CopiedTrade,
   Follow,
   Me,
   Pnl,
+  PnlRange,
+  PnlSeries,
   PaperPortfolio,
   api,
   pct,
@@ -33,6 +37,11 @@ export default function Dashboard() {
   const [follows, setFollows] = useState<Follow[]>([]);
   const [trades, setTrades] = useState<CopiedTrade[]>([]);
   const [ready, setReady] = useState(false);
+
+  const [account, setAccount] = useState<AccountKind>("paper");
+  const [range, setRange] = useState<PnlRange>("day");
+  const [series, setSeries] = useState<PnlSeries | null>(null);
+  const [seriesLoading, setSeriesLoading] = useState(false);
 
   const loadAll = useCallback(async (tok: string) => {
     const m = await api.me(tok);
@@ -72,6 +81,22 @@ export default function Dashboard() {
     }
   }, [loadAll]);
 
+  // Fetch the P&L series whenever the account or range changes.
+  useEffect(() => {
+    if (!token || !me) return;
+    let active = true;
+    setSeriesLoading(true);
+    api.myPnlSeries(token, account, range).then((s) => {
+      if (active) {
+        setSeries(s);
+        setSeriesLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [token, me, account, range]);
+
   // Telegram login widget
   useEffect(() => {
     if (token || !BOT_USERNAME) return;
@@ -100,20 +125,39 @@ export default function Dashboard() {
     setMe(null);
   }
 
+  const isPaper = account === "paper";
+  const value = isPaper ? paper?.portfolio_value ?? 0 : pnl?.portfolio_value ?? 0;
+  const totalPnl = isPaper
+    ? paper?.total_pnl ?? 0
+    : (pnl?.realized_pnl ?? 0) + (pnl?.unrealized_pnl ?? 0);
+  const winRate = isPaper ? paper?.win_rate ?? null : pnl?.win_rate ?? null;
+  const settled = isPaper ? paper?.settled_markets ?? 0 : pnl?.settled_markets ?? 0;
+  const openPos = isPaper ? paper?.open_positions ?? 0 : pnl?.open_positions ?? 0;
+
   return (
-    <main className="mx-auto max-w-4xl px-6 py-14">
-      <header className="flex items-center justify-between">
-        <Link href="/" className="text-2xl font-semibold tracking-tight">
+    <main className="mx-auto max-w-5xl px-6 pb-20">
+      <header className="sticky top-0 z-10 -mx-6 mb-2 flex items-center justify-between border-b border-zinc-800/60 bg-zinc-950/80 px-6 py-4 backdrop-blur">
+        <Link
+          href="/"
+          className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-xl font-bold tracking-tight text-transparent"
+        >
           Polycopy
         </Link>
         {me && (
           <div className="flex items-center gap-3">
-            {me.paper_trading && (
-              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">
-                PAPER MODE
-              </span>
-            )}
-            <button onClick={logout} className="text-sm text-zinc-400 hover:text-zinc-200">
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                me.paper_trading
+                  ? "border border-amber-500/40 bg-amber-500/10 text-amber-400"
+                  : "border border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+              }`}
+            >
+              {me.paper_trading ? "PAPER MODE" : "LIVE MODE"}
+            </span>
+            <button
+              onClick={logout}
+              className="text-sm text-zinc-400 transition hover:text-zinc-200"
+            >
               Sign out
             </button>
           </div>
@@ -123,9 +167,9 @@ export default function Dashboard() {
       {!ready && <p className="mt-10 text-zinc-500">Loading…</p>}
 
       {ready && !me && (
-        <section className="mt-16 text-center">
-          <h2 className="text-xl font-medium">Sign in to see your copy-trading</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-zinc-400">
+        <section className="mt-24 text-center">
+          <h2 className="text-2xl font-semibold">Sign in to see your copy-trading</h2>
+          <p className="mx-auto mt-3 max-w-md text-sm text-zinc-400">
             Open the bot in Telegram and send{" "}
             <code className="rounded bg-zinc-800 px-1.5 py-0.5 text-zinc-200">
               /login
@@ -145,65 +189,80 @@ export default function Dashboard() {
 
       {ready && me && (
         <>
-          <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Card title="Account">
-              {me.telegram_username ? `@${me.telegram_username}` : `#${me.telegram_id}`}
-              {me.email && <div className="text-xs text-zinc-500">{me.email}</div>}
-            </Card>
-            <Card title="Wallet">
-              {me.linked ? (
-                <span className="text-emerald-400">
-                  {me.wallet_origin === "created" ? "custodial" : "linked"}
-                </span>
-              ) : (
-                <span className="text-amber-400">none</span>
-              )}
-              {me.wallet_address && (
-                <div className="font-mono text-xs text-zinc-500">
-                  {me.wallet_address.slice(0, 6)}…{me.wallet_address.slice(-4)}
+          {/* Hero: active account value + P&L, with the paper/live toggle. */}
+          <section className="mt-8 rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900/80 to-zinc-900/30 p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-zinc-500">
+                  {isPaper ? "Paper portfolio" : "Live portfolio"}
                 </div>
-              )}
-            </Card>
-            <Card title="Auto-copy">
-              <span className={me.auto_scout_enabled ? "text-emerald-400" : "text-zinc-400"}>
-                {me.auto_scout_enabled ? "on" : "off"}
-              </span>
-            </Card>
-            <Card title="Copying">{follows.length}</Card>
+                <div className="mt-1 text-4xl font-bold tabular-nums">{usd(value)}</div>
+                <div className="mt-1 text-sm">
+                  <Pl value={totalPnl} /> <span className="text-zinc-500">all-time P&amp;L</span>
+                </div>
+              </div>
+              <AccountToggle account={account} onChange={setAccount} linked={me.linked} />
+            </div>
+
+            <div className="mt-6">
+              <PnlChart
+                points={series?.account === account ? series.points : []}
+                range={range}
+                onRange={setRange}
+                loading={seriesLoading}
+                emptyHint={
+                  isPaper
+                    ? "No closed paper trades in this range yet."
+                    : "Live P&L history is recorded hourly — it fills in over time."
+                }
+              />
+            </div>
           </section>
 
-          {pnl && (
-            <section className="mt-8">
-              <h2 className="mb-3 text-sm uppercase tracking-wider text-zinc-400">
-                Performance
-              </h2>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Card title="Portfolio value">{usd(pnl.portfolio_value)}</Card>
-                <Card title="Unrealized P&L">
-                  <Pl value={pnl.unrealized_pnl} />
-                </Card>
-                <Card title="Realized P&L">
-                  <Pl value={pnl.realized_pnl} />
-                </Card>
-                <Card title="Win rate">
-                  {pct(pnl.win_rate)}
-                  <div className="text-xs text-zinc-500">{pnl.settled_markets} settled</div>
-                </Card>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500">
-                {pnl.trades_filled} filled · {pnl.trades_submitted} pending ·{" "}
-                {pnl.trades_paper} paper · {pnl.trades_skipped} skipped ·{" "}
-                {pnl.open_positions} open positions
-              </p>
+          {/* Active-account stat cards. */}
+          <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Card title="Portfolio value">{usd(value)}</Card>
+            <Card title="Total P&L">
+              <Pl value={totalPnl} />
+            </Card>
+            <Card title="Win rate">
+              {pct(winRate)}
+              <div className="text-xs text-zinc-500">{settled} settled</div>
+            </Card>
+            <Card title="Open positions">{openPos}</Card>
+          </section>
+
+          {isPaper ? (
+            <PaperPanel token={token!} me={me} paper={paper} onChange={() => loadAll(token!)} />
+          ) : (
+            <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card title="Wallet">
+                {me.linked ? (
+                  <span className="text-emerald-400">
+                    {me.wallet_origin === "created" ? "custodial" : "linked"}
+                  </span>
+                ) : (
+                  <span className="text-amber-400">none</span>
+                )}
+                {me.wallet_address && (
+                  <div className="font-mono text-xs text-zinc-500">
+                    {me.wallet_address.slice(0, 6)}…{me.wallet_address.slice(-4)}
+                  </div>
+                )}
+              </Card>
+              <Card title="Unrealized P&L">
+                <Pl value={pnl?.unrealized_pnl ?? 0} />
+              </Card>
+              <Card title="Realized P&L">
+                <Pl value={pnl?.realized_pnl ?? 0} />
+              </Card>
+              <Card title="Auto-copy">
+                <span className={me.auto_scout_enabled ? "text-emerald-400" : "text-zinc-400"}>
+                  {me.auto_scout_enabled ? "on" : "off"}
+                </span>
+              </Card>
             </section>
           )}
-
-          <PaperPanel
-            token={token!}
-            me={me}
-            paper={paper}
-            onChange={() => loadAll(token!)}
-          />
 
           <section className="mt-10">
             <h2 className="mb-3 text-sm uppercase tracking-wider text-zinc-400">
@@ -214,13 +273,13 @@ export default function Dashboard() {
                 {follows.map((f) => (
                   <li
                     key={f.wallet}
-                    className="flex items-center justify-between rounded-md border border-zinc-800 bg-zinc-900/40 px-4 py-2 text-sm"
+                    className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-2.5 text-sm transition hover:border-zinc-700"
                   >
                     <a
                       href={profileUrl(f.wallet)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:text-emerald-400 hover:underline"
+                      className="font-medium hover:text-emerald-400 hover:underline"
                     >
                       {f.display_name || `${f.wallet.slice(0, 6)}…${f.wallet.slice(-4)}`}
                     </a>
@@ -243,7 +302,7 @@ export default function Dashboard() {
               Recent copied trades
             </h2>
             {trades.length ? (
-              <div className="overflow-hidden rounded-lg border border-zinc-800">
+              <div className="overflow-hidden rounded-xl border border-zinc-800">
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-900/60 text-left text-xs uppercase tracking-wider text-zinc-400">
                     <tr>
@@ -255,7 +314,7 @@ export default function Dashboard() {
                   </thead>
                   <tbody className="divide-y divide-zinc-800">
                     {trades.map((t, i) => (
-                      <tr key={i} className="hover:bg-zinc-900/30">
+                      <tr key={i} className="transition hover:bg-zinc-900/40">
                         <td className="px-4 py-3 max-w-xs truncate">
                           {marketUrl(t.market_slug) ? (
                             <a
@@ -293,15 +352,60 @@ export default function Dashboard() {
   );
 }
 
+function AccountToggle({
+  account,
+  onChange,
+  linked,
+}: {
+  account: AccountKind;
+  onChange: (a: AccountKind) => void;
+  linked: boolean;
+}) {
+  const opts: { key: AccountKind; label: string }[] = [
+    { key: "paper", label: "Paper" },
+    { key: "real", label: "Live" },
+  ];
+  return (
+    <div className="inline-flex rounded-xl border border-zinc-800 bg-zinc-950/60 p-1">
+      {opts.map((o) => {
+        const activeTab = account === o.key;
+        const liveDisabled = o.key === "real" && !linked;
+        return (
+          <button
+            key={o.key}
+            onClick={() => !liveDisabled && onChange(o.key)}
+            disabled={liveDisabled}
+            title={liveDisabled ? "Link a wallet to view your live account" : undefined}
+            className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+              activeTab
+                ? o.key === "paper"
+                  ? "bg-amber-500/15 text-amber-300"
+                  : "bg-emerald-500/15 text-emerald-300"
+                : "text-zinc-500 hover:text-zinc-300"
+            } ${liveDisabled ? "cursor-not-allowed opacity-40" : ""}`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Pl({ value }: { value: number }) {
   const color = value > 0 ? "text-emerald-400" : value < 0 ? "text-rose-400" : "text-zinc-300";
   const sign = value > 0 ? "+" : "";
-  return <span className={color}>{sign}{usd(value)}</span>;
+  return (
+    <span className={`tabular-nums ${color}`}>
+      {sign}
+      {usd(value)}
+    </span>
+  );
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 transition hover:border-zinc-700">
       <div className="text-xs uppercase tracking-wider text-zinc-500">{title}</div>
       <div className="mt-1 font-medium">{children}</div>
     </div>
@@ -337,23 +441,23 @@ function PaperPanel({
   }
 
   return (
-    <section className="mt-10">
+    <section className="mt-6">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm uppercase tracking-wider text-zinc-400">Paper trading</h2>
         <button
           onClick={() => save({ paper_trading: !me.paper_trading })}
           disabled={busy}
-          className={`rounded-full px-3 py-1 text-xs ${
+          className={`rounded-full px-3 py-1 text-xs transition ${
             me.paper_trading
               ? "border border-amber-500/40 bg-amber-500/10 text-amber-400"
-              : "border border-zinc-700 text-zinc-400"
+              : "border border-zinc-700 text-zinc-400 hover:text-zinc-200"
           } disabled:opacity-50`}
         >
           {me.paper_trading ? "ON — click to go live" : "OFF — click to simulate"}
         </button>
       </div>
 
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="number"
@@ -366,7 +470,7 @@ function PaperPanel({
           <button
             onClick={fund}
             disabled={busy || !amount}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
           >
             {paper?.enabled ? "Reset balance" : "Set balance"}
           </button>
@@ -376,73 +480,60 @@ function PaperPanel({
         </div>
 
         {paper?.enabled && (
-          <>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Card title="Paper value">{usd(paper.portfolio_value)}</Card>
-              <Card title="Total P&L">
-                <Pl value={paper.total_pnl} />
-                <div className="text-xs text-zinc-500">
-                  from {usd(paper.starting_balance)}
-                </div>
-              </Card>
-              <Card title="Cash">{usd(paper.cash)}</Card>
-              <Card title="Win rate">
-                {pct(paper.win_rate)}
-                <div className="text-xs text-zinc-500">
-                  {paper.settled_markets} closed
-                </div>
-              </Card>
-            </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Card title="Cash">{usd(paper.cash)}</Card>
+            <Card title="Invested">{usd(paper.market_value)}</Card>
+            <Card title="Started with">{usd(paper.starting_balance)}</Card>
+          </div>
+        )}
 
-            {paper.positions.length > 0 && (
-              <div className="mt-4 overflow-hidden rounded-lg border border-zinc-800">
-                <table className="w-full text-sm">
-                  <thead className="bg-zinc-900/60 text-left text-xs uppercase tracking-wider text-zinc-400">
-                    <tr>
-                      <th className="px-4 py-3">Market</th>
-                      <th className="px-4 py-3 text-right">Shares</th>
-                      <th className="px-4 py-3 text-right">Avg</th>
-                      <th className="px-4 py-3 text-right">Now</th>
-                      <th className="px-4 py-3 text-right">Value</th>
-                      <th className="px-4 py-3 text-right">P&L</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800">
-                    {paper.positions.map((p, i) => (
-                      <tr key={i} className="hover:bg-zinc-900/30">
-                        <td className="px-4 py-3 max-w-xs truncate">
-                          {marketUrl(p.market_slug) ? (
-                            <a
-                              href={marketUrl(p.market_slug)!}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:text-emerald-400 hover:underline"
-                            >
-                              {p.market_question || "—"}
-                            </a>
-                          ) : (
-                            p.market_question || "—"
-                          )}
-                          <span className="ml-2 text-xs text-zinc-500">{p.outcome}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-zinc-400">{p.shares}</td>
-                        <td className="px-4 py-3 text-right text-zinc-400">
-                          {p.avg_price.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-zinc-400">
-                          {p.cur_price.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-right">{usd(p.value)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <Pl value={p.unrealized_pnl} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
+        {paper?.enabled && paper.positions.length > 0 && (
+          <div className="mt-4 overflow-hidden rounded-xl border border-zinc-800">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-900/60 text-left text-xs uppercase tracking-wider text-zinc-400">
+                <tr>
+                  <th className="px-4 py-3">Market</th>
+                  <th className="px-4 py-3 text-right">Shares</th>
+                  <th className="px-4 py-3 text-right">Avg</th>
+                  <th className="px-4 py-3 text-right">Now</th>
+                  <th className="px-4 py-3 text-right">Value</th>
+                  <th className="px-4 py-3 text-right">P&amp;L</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {paper.positions.map((p, i) => (
+                  <tr key={i} className="transition hover:bg-zinc-900/40">
+                    <td className="px-4 py-3 max-w-xs truncate">
+                      {marketUrl(p.market_slug) ? (
+                        <a
+                          href={marketUrl(p.market_slug)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-emerald-400 hover:underline"
+                        >
+                          {p.market_question || "—"}
+                        </a>
+                      ) : (
+                        p.market_question || "—"
+                      )}
+                      <span className="ml-2 text-xs text-zinc-500">{p.outcome}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-zinc-400">{p.shares}</td>
+                    <td className="px-4 py-3 text-right text-zinc-400">
+                      {p.avg_price.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-zinc-400">
+                      {p.cur_price.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right">{usd(p.value)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <Pl value={p.unrealized_pnl} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </section>

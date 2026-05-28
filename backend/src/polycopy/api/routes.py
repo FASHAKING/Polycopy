@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, select
 
@@ -9,6 +11,8 @@ from polycopy.api.schemas import (
     PaperPortfolioOut,
     PaperPositionOut,
     PnlOut,
+    PnlPointOut,
+    PnlSeriesOut,
     SettingsIn,
     StatsOut,
     TelegramLoginIn,
@@ -187,6 +191,38 @@ async def my_paper(user: CurrentUser, session: SessionDep) -> PaperPortfolioOut:
             for pos in p.positions
         ],
     )
+
+
+_RANGE_DELTAS = {
+    "hour": timedelta(hours=1),
+    "day": timedelta(days=1),
+    "week": timedelta(weeks=1),
+    "month": timedelta(days=30),
+}
+
+
+@router.get("/me/pnl/series", response_model=PnlSeriesOut)
+async def my_pnl_series(
+    user: CurrentUser,
+    session: SessionDep,
+    account: str = "paper",
+    range: str = "day",
+) -> PnlSeriesOut:
+    if account not in ("paper", "real"):
+        raise HTTPException(status_code=422, detail="account must be 'paper' or 'real'")
+    if range not in _RANGE_DELTAS:
+        raise HTTPException(status_code=422, detail="invalid range")
+
+    since = datetime.utcnow() - _RANGE_DELTAS[range]
+    if account == "paper":
+        points = [
+            PnlPointOut(t=t, pnl=pnl)
+            for t, pnl in await repo.paper_pnl_series(session, user, since=since)
+        ]
+    else:
+        snaps = await repo.get_account_snapshots(session, user, account="real", since=since)
+        points = [PnlPointOut(t=s.created_at, pnl=s.pnl) for s in snaps]
+    return PnlSeriesOut(account=account, range=range, points=points)
 
 
 @router.get("/me/trades", response_model=list[CopiedTradeOut])

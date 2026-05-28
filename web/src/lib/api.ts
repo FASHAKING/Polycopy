@@ -93,6 +93,16 @@ export type Pnl = {
   trades_paper: number;
 };
 
+export type AccountKind = "paper" | "real";
+export type PnlRange = "hour" | "day" | "week" | "month";
+
+export type PnlPoint = { t: string; pnl: number };
+export type PnlSeries = {
+  account: AccountKind;
+  range: PnlRange;
+  points: PnlPoint[];
+};
+
 export type CopiedTrade = {
   market_question: string | null;
   market_slug: string | null;
@@ -129,6 +139,8 @@ export const api = {
   myFollows: (token: string) => get<Follow[]>("/api/me/follows", token),
   myTrades: (token: string) => get<CopiedTrade[]>("/api/me/trades", token),
   myPnl: (token: string) => get<Pnl>("/api/me/pnl", token),
+  myPnlSeries: (token: string, account: AccountKind, range: PnlRange) =>
+    get<PnlSeries>(`/api/me/pnl/series?account=${account}&range=${range}`, token),
   myPaper: (token: string) => get<PaperPortfolio>("/api/me/paper", token),
   updateSettings: async (token: string, payload: SettingsUpdate) => {
     try {

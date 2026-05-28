@@ -28,6 +28,12 @@ async def _reconcile_tick() -> None:
     await reconcile_once()
 
 
+async def _snapshot_tick() -> None:
+    from polycopy.workers.snapshot import snapshot_once
+
+    await snapshot_once()
+
+
 async def run_async() -> None:
     configure_logging()
     settings = get_settings()
@@ -37,6 +43,7 @@ async def run_async() -> None:
     scheduler.add_job(_watcher_tick, "interval", seconds=settings.watcher_poll_interval)
     scheduler.add_job(_scout_tick, "interval", seconds=settings.scout_poll_interval)
     scheduler.add_job(_reconcile_tick, "interval", seconds=settings.reconcile_poll_interval)
+    scheduler.add_job(_snapshot_tick, "interval", seconds=settings.snapshot_poll_interval)
     scheduler.start()
 
     log.info(
@@ -44,6 +51,7 @@ async def run_async() -> None:
         watcher_interval=settings.watcher_poll_interval,
         scout_interval=settings.scout_poll_interval,
         reconcile_interval=settings.reconcile_poll_interval,
+        snapshot_interval=settings.snapshot_poll_interval,
     )
 
     stop = asyncio.Event()

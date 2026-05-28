@@ -177,3 +177,16 @@ class WatcherCursor(Base):
     trader_id: Mapped[int] = mapped_column(ForeignKey("traders.id"), primary_key=True)
     last_trade_ts: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_trade_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+
+class AccountSnapshot(Base):
+    """Periodic point-in-time value of a user's account, for the P&L chart."""
+
+    __tablename__ = "account_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    account: Mapped[str] = mapped_column(String(8))  # paper | real
+    portfolio_value: Mapped[float] = mapped_column(Float, default=0.0)
+    pnl: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)

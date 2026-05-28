@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     watcher_poll_interval: int = Field(default=15, ge=2)
     scout_poll_interval: int = Field(default=3600, ge=60)
     reconcile_poll_interval: int = Field(default=30, ge=5)
+    snapshot_poll_interval: int = Field(default=3600, ge=60)
 
 
 @lru_cache
